@@ -130,6 +130,10 @@ svg .su{stroke:var(--up);stroke-width:1}svg .sd{stroke:var(--down);stroke-width:
 svg .fu{fill:var(--up)}svg .fd{fill:var(--down)}
 svg .bbz{fill:rgba(59,130,246,.08)}svg .bbl{fill:none;stroke:rgba(96,165,250,.7);stroke-width:1.2;stroke-dasharray:4 3}
 svg .bbm{fill:none;stroke:rgba(148,163,184,.45);stroke-width:1}svg .lastl{stroke:rgba(255,255,255,.35);stroke-width:1;stroke-dasharray:2 3}
+.banner{position:fixed;left:12px;right:12px;top:calc(10px + env(safe-area-inset-top));z-index:10;max-width:536px;margin:0 auto;padding:12px 14px;border-radius:16px;
+  background:#132a20;border:1px solid rgba(22,199,132,.55);box-shadow:0 10px 30px rgba(0,0,0,.45);display:none;align-items:center;gap:10px;font-weight:600}
+.banner.down{background:#2c1416;border-color:rgba(239,68,68,.55)}
+.banner.show{display:flex}.banner span{flex:1}.banner button{padding:8px 12px;border-radius:10px;background:var(--card2);font-weight:700}
 @media (max-width:360px){.metrics{grid-template-columns:1fr 1fr}.dir .big{font-size:34px}}
 </style>
 </head>
@@ -155,6 +159,7 @@ svg .bbm{fill:none;stroke:rgba(148,163,184,.45);stroke-width:1}svg .lastl{stroke
   <nav class="foot" id="foot"></nav>
 </div>
 <div class="toast" id="toast"></div>
+<div class="banner" id="banner" role="alert"></div>
 
 <script>
 /* ═════════════════════════ НАСТРОЙКИ ═════════════════════════ */
@@ -425,7 +430,12 @@ const I18N = {
     bcWelcome: 'Приветствие на /start', bcMessage: 'Сообщение', bcPh: 'Текст рассылки', bcSend: '📣 Отправить всем ({n})', bcConfirm: 'Отправить сообщение {n} подписчикам?',
     bcEmpty: 'Введите текст', bcProgress: 'Отправлено {done}/{total}: успешно {ok}, ошибок {fail}', bcRemoved: 'удалено заблокировавших бота: {n}',
     bcWebhook: 'У бота включён webhook — список подписчиков так не получить. Отключите webhook.',
-    welcomeDefault: 'Привет! Нажмите кнопку ниже, чтобы открыть приложение. Это инструмент технического анализа, не гарантия результата. Торговля связана с риском потери средств.'
+    welcomeDefault: 'Привет! Нажмите кнопку ниже, чтобы открыть приложение. Бот присылает уведомления о новых сигналах; /stop — отписаться. Это инструмент технического анализа, не гарантия результата. Торговля связана с риском потери средств.',
+    watchOn: 'Уведомления о сигналах включены', watchOff: 'Включить уведомления о сигналах',
+    watchNote: 'Баннер, вибрация и звук при новом сигнале (EUR/USD, BTC, ETH), пока приложение открыто.',
+    notifySubs: '🔔 Присылать подписчикам «Новый сигнал» в личку', notifySubsNote: 'При каждом опубликованном сигнале (вручную или автопостингом) бот пишет подписчикам. /stop — отписка.',
+    notifyText: '🔔 Новый сигнал: {asset} (не OTC) · {dir} · {n} мин\nВход до {t} МСК\nИнструмент теханализа, не гарантия. Риск потери средств.',
+    stopReply: 'Вы отписались от уведомлений. Чтобы подписаться снова — /start'
   },
   en: {
     tagline: 'Technical analysis · signals', s1: 'Signal', s2: 'Result', s3: 'History',
@@ -516,7 +526,12 @@ const I18N = {
     bcWelcome: 'Welcome on /start', bcMessage: 'Message', bcPh: 'Broadcast text', bcSend: '📣 Send to all ({n})', bcConfirm: 'Send the message to {n} subscribers?',
     bcEmpty: 'Enter text', bcProgress: 'Sent {done}/{total}: ok {ok}, errors {fail}', bcRemoved: 'removed users who blocked the bot: {n}',
     bcWebhook: 'The bot has a webhook set — the subscriber list cannot be read this way. Remove the webhook.',
-    welcomeDefault: 'Hi! Tap the button below to open the app. It is a technical analysis tool, not a guarantee of results. Trading carries a risk of losing money.'
+    welcomeDefault: 'Hi! Tap the button below to open the app. The bot sends new-signal alerts; /stop to unsubscribe. It is a technical analysis tool, not a guarantee of results. Trading carries a risk of losing money.',
+    watchOn: 'Signal alerts on', watchOff: 'Turn on signal alerts',
+    watchNote: 'Banner, vibration and sound on a new signal (EUR/USD, BTC, ETH) while the app is open.',
+    notifySubs: '🔔 DM subscribers “New signal”', notifySubsNote: 'On every published signal (manual or auto) the bot messages subscribers. /stop unsubscribes.',
+    notifyText: '🔔 New signal: {asset} (not OTC) · {dir} · {n} min\nEnter before {t} MSK\nTechnical analysis tool, not a guarantee. Risk of losing money.',
+    stopReply: 'You have unsubscribed from alerts. To subscribe again — /start'
   }
 };
 const HOW = {
@@ -813,6 +828,38 @@ async function scanAll() {
   if (S.screen === 'scan') render();
 }
 
+/* ── Уведомления в приложении: раз в минуту проверяем активы Binance, при новом сигнале — баннер,
+   вибрация и короткий звук. Работает, пока приложение открыто (Telegram не даёт фоновых пушей). ── */
+const watchOn = () => LS.get('ta_watch', false);
+function beep() {
+  try {
+    const C = window.AudioContext || window.webkitAudioContext; if (!C) return;
+    const ctx = beep.ctx || (beep.ctx = new C()), o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.value = 880; g.gain.setValueAtTime(0.0001, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+    o.connect(g).connect(ctx.destination); o.start(); o.stop(ctx.currentTime + 0.4);
+  } catch { }
+}
+function showBanner(a, dir) {
+  const el = $('#banner');
+  el.className = 'banner show' + (dir === 'down' ? ' down' : '');
+  el.innerHTML = `<span>🔔 ${esc(a.name)} · ${dir === 'up' ? '▲' : '▼'} ${t(dir)}</span><button data-scanopen="${a.id}">${t('scanOpen')}</button><button data-act="bannerclose">✕</button>`;
+  haptic('success'); beep();
+  clearTimeout(showBanner.t); showBanner.t = setTimeout(() => el.classList.remove('show'), 55000); // окно входа ~60 с
+}
+async function watchRun() {
+  const seen = LS.get('ta_watch_seen', []);
+  for (const a of ASSETS.filter(x => x.src === 'binance' && isOpen(x.cls) && !assetLocked(x))) {
+    const res = await analyzeAsset(a);
+    if (res.status !== 'ok' || res.r.dir === 'none' || Date.now() > res.sigClose + 50000) continue;
+    const key = a.id + res.sigClose;
+    if (seen.includes(key)) continue;
+    seen.push(key); LS.set('ta_watch_seen', seen.slice(-100));
+    showBanner(a, res.r.dir);
+    break; // один баннер за раз
+  }
+}
+
 /* ── Cloudflare Worker: отправка ботом, автопостинг, мгновенная выдача доступа ── */
 async function workerApi(action, extra = {}) {
   if (!CONFIG.WORKER_URL) throw new Error('no worker');
@@ -933,6 +980,10 @@ async function syncSubscribers(silent) {
           blocked.delete(m.chat.id); // снова написал боту — значит, разблокировал
           if (!byId.has(m.chat.id)) { byId.set(m.chat.id, { id: m.chat.id, name: m.chat.first_name || '', u: m.chat.username || '', ts: m.date * 1000 }); added++; }
           if (typeof m.text === 'string' && m.text.startsWith('/start')) { try { await botSend(m.chat.id, welcomeText()); } catch { } }
+          if (typeof m.text === 'string' && m.text.startsWith('/stop')) { // отписка от уведомлений
+            byId.delete(m.chat.id); blocked.add(m.chat.id);
+            try { await botApi('sendMessage', { chat_id: m.chat.id, text: t('stopReply') }); } catch { }
+          }
         }
         if (cm && cm.chat && cm.chat.type === 'private' && cm.new_chat_member && cm.new_chat_member.status === 'kicked') { byId.delete(cm.chat.id); blocked.add(cm.chat.id); }
       }
@@ -946,6 +997,13 @@ async function syncSubscribers(silent) {
     S.subSync = { ok: true, added, at: Date.now() };
   } catch (e) { S.subSync = { error: e.code === 409 ? t('bcWebhook') : e.message }; }
   if (S.screen === 'admin') render();
+}
+// личное «🔔 Новый сигнал» всем подписчикам бота (если админ включил); перед отправкой учитываем свежие /stop
+async function notifySubscribers(rec) {
+  if (!botReady() || !LS.get('ta_notify_subs', false) || (S.bc && S.bc.running)) return;
+  await syncSubscribers(true);
+  const a = ASSET[rec.assetId];
+  await broadcast(t('notifyText', { asset: a.name, dir: t(rec.dir), n: rec.exp, t: hms(new Date(rec.deadline)) }));
 }
 // черновики, сгруппированные в альбомы (media_group_id), новые сверху
 function draftGroups() {
@@ -1008,6 +1066,7 @@ async function autoLocalRun() {
     };
     Store.add(rec);
     try { await botSend(BOT.get().channel, postSignalText(rec)); Store.patch(id, { posted: true }); } catch (e) { toast(t('sendFail', { e: e.message })); }
+    notifySubscribers(rec);
   }
   if (S.screen === 'admin' || S.screen === 'history') render();
 }
@@ -1203,6 +1262,8 @@ function vSelect() {
   <div class="card"><div class="label">${t('expiry')}</div><div class="seg">${[1, 3, 5].map(n => `<button class="${S.exp === n ? 'on' : ''}" data-exp="${n}" ${isLocked('exp' + n) ? 'disabled' : ''}>${isLocked('exp' + n) ? '🔒 ' : ''}${n} ${t('min')}</button>`).join('')}</div></div>
   <button class="btn" data-act="analyze" ${canGo ? '' : 'disabled'}>${t('analyze')}</button>
   <button class="btn ghost mt" data-go="scan">${t('scanBtn')}</button>
+  <button class="chip mt ${watchOn() ? 'on' : ''}" data-act="watch" style="width:100%;padding:10px">${watchOn() ? '🔔 ' + t('watchOn') : '🔕 ' + t('watchOff')}</button>
+  <p class="note center" style="margin:6px 0 0">${t('watchNote')}</p>
   ${tg ? '' : `<p class="note center mt">${t('noTg')}</p>`}`;
 }
 
@@ -1282,6 +1343,7 @@ async function publishManual(dir) {
   };
   Store.add(rec); S.currentId = id;
   await postToChannel(postSignalText(rec));
+  notifySubscribers(rec);
   Store.patch(id, { posted: true });
   toast(t('pubDone', { n: id }));
   render();
@@ -1471,6 +1533,8 @@ function admBroadcast() {
     ${ss && ss !== 'running' && !ss.error ? (S.dbErr ? `<p class="warn">${esc(t('dbErr', { e: S.dbErr, id: DB.chat() }))}</p>` : `<p class="note">${t('dbOk', { id: DB.chat() })}</p>`) : ''}
     <button class="btn ghost sm" data-act="subsync">${t('bcSync')}</button>
     <p class="note">${t('bcHow')}</p>
+    <button class="chip ${LS.get('ta_notify_subs', false) ? 'on' : ''}" data-act="notifysubs" style="margin:4px 0 6px">${LS.get('ta_notify_subs', false) ? '✓ ' : ''}${t('notifySubs')}</button>
+    <p class="note" style="margin-top:0">${t('notifySubsNote')}</p>
     <div class="label mt">${t('bcWelcome')}</div>
     <textarea class="inp" id="welcomeTxt" rows="3">${esc(welcomeText())}</textarea>
     <button class="btn ghost sm" data-act="welcomesave">${t('botSave')}</button>
@@ -1629,6 +1693,9 @@ function tick() {
   if (S.screen === 'scan' && S.scan && S.scan.auto && !S.scan.running && new Date(now).getSeconds() >= 3 && S.scan.lastMin !== Math.floor(now / 60000)) {
     S.scan.lastMin = Math.floor(now / 60000); scanAll();
   }
+  if (watchOn() && new Date(now).getSeconds() >= 4 && S.watchMin !== Math.floor(now / 60000)) {
+    S.watchMin = Math.floor(now / 60000); watchRun();
+  }
   // автопостинг без сервера: раз в минуту, пока приложение открыто у админа
   if (autoLocalOn() && new Date(now).getSeconds() >= 3 && S.autoMin !== Math.floor(now / 60000)) {
     S.autoMin = Math.floor(now / 60000); autoLocalRun();
@@ -1645,7 +1712,7 @@ document.addEventListener('click', async e => {
   const b = e.target.closest('button,a'); if (!b) return;
   const ds = b.dataset;
   if (ds.go) { S.screen = ds.go; if (ds.go === 'result') resolvePending(true); if (ds.go === 'scan') scanAll(); return render(); }
-  if (ds.scanopen) { const a = ASSET[ds.scanopen]; S.assetId = a.id; S.cls = a.cls; return runAnalysis(); }
+  if (ds.scanopen) { $('#banner').classList.remove('show'); const a = ASSET[ds.scanopen]; S.assetId = a.id; S.cls = a.cls; return runAnalysis(); }
   if (ds.ap) { S.ap = ds.ap; return render(); }
   if (ds.bcdraft) {
     const g = draftGroups().find(x => x.key === ds.bcdraft); if (!g) return;
@@ -1670,6 +1737,9 @@ document.addEventListener('click', async e => {
     case 'analyze': return runAnalysis();
     case 'ai': return aiExplain();
     case 'ailean': return aiLean();
+    case 'watch': LS.set('ta_watch', !watchOn()); S.watchMin = null; beep(); return render(); // звук по нажатию разблокирует аудио в WebView
+    case 'bannerclose': return $('#banner').classList.remove('show');
+    case 'notifysubs': LS.set('ta_notify_subs', !LS.get('ta_notify_subs', false)); return render();
     case 'manual': return publishManual(ds.dir);
     case 'ref': return openExternal(refLink());
     case 'help': return openTg(supportLink());
