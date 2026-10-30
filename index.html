@@ -345,7 +345,7 @@ const I18N = {
     sigCandle: 'Сигнальная свеча {t} МСК', price: 'Цена',
     where: 'Где торговать', aiBtn: '🤖 ИИ-разбор', aiLoading: 'ИИ разбирает расчёты…', aiErr: 'ИИ сейчас недоступен, попробуйте позже.',
     aiNote: 'Комментарий ИИ поясняет расчёты и не влияет на сигнал.', aiTitle: 'ИИ-разбор',
-    aiKey: 'Админу: ключ ИИ не подходит или для него не разрешены текстовые модели. enter.pollinations.ai → Keys → ваш ключ → разрешите модель «openai» (Text). См. README, раздел 4.',
+    aiKey: 'Админу: ключ ИИ отклонён — не разрешена модель «openai» или исчерпан бюджет ключа. enter.pollinations.ai → Keys → ваш ключ → разрешите Text-модели и поднимите бюджет. README, раздел 4.',
     toResult: 'К результату →', again: 'Новый анализ', change: '← Изменить актив',
     disc: 'Инструмент технического анализа. Расчёт по рыночным котировкам (Binance, Twelve Data), у брокера цена может отличаться. Не является инвестиционной рекомендацией и не гарантирует результат. Торговля бинарными опционами связана с высоким риском потери средств.',
     sendCh: '📤 Отправить в канал', copy: '📋 Копировать', copied: 'Скопировано', sendRes: '📤 Отправить результат',
@@ -385,6 +385,9 @@ const I18N = {
     admViaGit: 'Изменения сохранятся для всех после «Копировать settings.json» → GitHub → Commit (блок внизу).',
     admSaveTitle: 'Сохранить настройки для всех', badId: 'Неверный ID', granted: 'Доступ выдан', grantedDraft: 'Добавлено — сохраните settings.json', revoked: 'Доступ снят',
     sentBot: 'Отправлено ботом', sendFail: 'Бот не отправил ({e})',
+    leanTitle: '🤖 Оценка ИИ: куда скорее', leanBtn: 'Спросить ИИ', lean_up: '↗ скорее вверх', lean_down: '↘ скорее вниз', lean_neutral: '↔ явного перевеса нет',
+    leanWarn: 'Это мнение ИИ, а не сигнал: на коротких сроках оно угадывает примерно как монетка. Не ставьте на него деньги вслепую.',
+    leanAcc: 'Реальная точность оценок ИИ на этом устройстве: {p} из {n}', leanFew: 'пока мало данных',
     botConnected: 'Бот подключён', botHow: 'Чтобы бот сам постил в канал и делал рассылку без сервера, вставьте токен бота. Он сохранится только на этом телефоне.',
     botTokenPh: 'Токен бота из @BotFather', botTokenReplace: 'Новый токен (если нужно заменить)', botChannelPh: 'Канал: @имя_канала или -100…',
     botSave: 'Сохранить', botSaved: 'Сохранено', botBadToken: 'Неверный формат токена', botBadChannel: 'Канал: @имя или -100…', botCheckFail: 'Токен не подошёл: {e}',
@@ -419,7 +422,7 @@ const I18N = {
     sigCandle: 'Signal candle {t} MSK', price: 'Price',
     where: 'Where to trade', aiBtn: '🤖 AI review', aiLoading: 'AI is reviewing the numbers…', aiErr: 'AI is unavailable right now, try later.',
     aiNote: 'The AI comment explains the numbers and does not change the signal.', aiTitle: 'AI review',
-    aiKey: 'Admin: the AI key is rejected or has no text models allowed. enter.pollinations.ai → Keys → your key → allow the “openai” model (Text). See README, section 4.',
+    aiKey: 'Admin: the AI key was rejected — the “openai” model is not allowed or the key budget is used up. enter.pollinations.ai → Keys → your key → allow Text models and raise the budget. README, section 4.',
     toResult: 'To result →', again: 'New analysis', change: '← Change asset',
     disc: 'Technical analysis tool. Calculated from market quotes (Binance, Twelve Data); the broker’s price may differ. Not investment advice and no guarantee of results. Binary options trading carries a high risk of losing money.',
     sendCh: '📤 Send to channel', copy: '📋 Copy', copied: 'Copied', sendRes: '📤 Send result',
@@ -459,6 +462,9 @@ const I18N = {
     admViaGit: 'Changes apply for everyone after “Copy settings.json” → GitHub → Commit (block below).',
     admSaveTitle: 'Save settings for everyone', badId: 'Invalid ID', granted: 'Access granted', grantedDraft: 'Added — save settings.json', revoked: 'Access revoked',
     sentBot: 'Sent by the bot', sendFail: 'Bot failed ({e})',
+    leanTitle: '🤖 AI estimate: more likely', leanBtn: 'Ask AI', lean_up: '↗ more likely up', lean_down: '↘ more likely down', lean_neutral: '↔ no clear edge',
+    leanWarn: 'This is the AI’s opinion, not a signal: on short horizons it guesses about as well as a coin. Do not bet money on it blindly.',
+    leanAcc: 'Real accuracy of AI estimates on this device: {p} of {n}', leanFew: 'not enough data yet',
     botConnected: 'Bot connected', botHow: 'Paste the bot token so the bot posts to the channel and sends broadcasts without a server. It is stored only on this phone.',
     botTokenPh: 'Bot token from @BotFather', botTokenReplace: 'New token (to replace)', botChannelPh: 'Channel: @channel_name or -100…',
     botSave: 'Save', botSaved: 'Saved', botBadToken: 'Invalid token format', botBadChannel: 'Channel: @name or -100…', botCheckFail: 'Token rejected: {e}',
@@ -629,6 +635,8 @@ const Store = {
   clear() { LS.set(this.KEY, []); },
   nextNo() { const n = LS.get('ta_counter', 0) + 1; LS.set('ta_counter', n); return n; }
 };
+// оценки ИИ хранятся отдельно от сигналов и не попадают в их статистику
+const AIStore = Object.create(Store, { KEY: { value: 'ta_ai_v1' } });
 
 /* ═════════════════════════ TELEGRAM ═════════════════════════ */
 const tg = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData !== undefined ? window.Telegram.WebApp : null;
@@ -686,7 +694,7 @@ const S = {
   lang: LS.get('ta_lang', CONFIG.DEFAULT_LANG) === 'en' ? 'en' : 'ru',
   screen: 'select', cls: 'forex', assetId: 'EURUSD', exp: 5,
   an: null, currentId: null, hf: { cls: 'all', period: 'd7' },
-  stockRT: 'unknown', ai: {}
+  stockRT: 'unknown', ai: {}, aiLean: {}
 };
 const $ = s => document.querySelector(s);
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -898,7 +906,7 @@ async function resolvePending(force) {
   let changed = false;
   try {
     const now = Date.now();
-    for (const r of Store.all()) {
+    for (const st of [Store, AIStore]) for (const r of st.all()) {
       if (r.status !== 'pending') continue;
       const due = r.entryT + r.exp * 60000;
       if (now < due + 3000 || (!force && r.nextTry && now < r.nextTry)) continue;
@@ -906,21 +914,21 @@ async function resolvePending(force) {
       try {
         const res = Resolve.fromCandles(r, await getRange(a, r.entryT, r.exp));
         if (res) {
-          const done = Store.patch(r.id, { status: res.outcome, entry: res.entry, exit: res.exit, resolvedAt: Date.now() }); changed = true;
-          if (r.id === S.currentId) haptic(res.outcome === 'win' ? 'success' : 'warning');
-          if (done.auto && done.posted && botReady() && BOT.get().channel) { // автопостинг: итог тоже сам
+          const done = st.patch(r.id, { status: res.outcome, entry: res.entry, exit: res.exit, resolvedAt: Date.now() }); changed = true;
+          if (st === Store && r.id === S.currentId) haptic(res.outcome === 'win' ? 'success' : 'warning');
+          if (st === Store && done.auto && done.posted && botReady() && BOT.get().channel) { // автопостинг: итог тоже сам
             try { await botSend(BOT.get().channel, postResultText(done), false); Store.patch(r.id, { resultPosted: true }); } catch { }
           }
         }
-        else Store.patch(r.id, now - due > 6 * 3600e3 ? { status: 'nodata' } : { nextTry: now + 15000 });
+        else st.patch(r.id, now - due > 6 * 3600e3 ? { status: 'nodata' } : { nextTry: now + 15000 });
       } catch (e) {
-        Store.patch(r.id, now - due > 6 * 3600e3 ? { status: 'nodata' } : { nextTry: now + (e.message === 'rate' ? 45000 : 15000) });
+        st.patch(r.id, now - due > 6 * 3600e3 ? { status: 'nodata' } : { nextTry: now + (e.message === 'rate' ? 45000 : 15000) });
       }
       changed = true;
       if (a.src === 'td') break; // бережём лимит Twelve Data
     }
   } finally { resolving = false; }
-  if (changed && ['result', 'history', 'day'].includes(S.screen)) render();
+  if (changed && ['result', 'history', 'day', 'signal'].includes(S.screen)) render();
 }
 
 async function checkStocksRealtime() {
@@ -955,7 +963,13 @@ async function aiExplain() {
   const sys = S.lang === 'ru'
     ? 'Ты помощник по техническому анализу. Объясни простым русским языком в 4–6 коротких предложениях, что показывают эти расчётные значения: RSI, полосы Боллинджера, тренд 15м, расстояние до уровня и средний ход. Не меняй и не оспаривай направление сигнала, не давай гарантий и обещаний прибыли, не советуй размер ставки. Если расстояние до уровня меньше среднего хода за 5 минут — отметь это как риск. Закончи напоминанием о риске потери средств. Без markdown.'
     : 'You are a technical analysis assistant. In 4–6 short plain-English sentences explain what these calculated values show: RSI, Bollinger Bands, 15m trend, distance to level and average move. Do not change or dispute the signal direction, give no guarantees or profit promises, no position sizing advice. If the distance to level is less than the average 5-min move, flag it as a risk. End with a reminder about the risk of losing money. No markdown.';
-  const user = JSON.stringify(facts);
+  let { text, needKey } = await aiChat(sys, JSON.stringify(facts));
+  text = (text || '').replace(/[*#`]/g, '').trim().slice(0, 1500);
+  S.ai[key] = { ...S.ai[key], loading: false, ...(text ? { text, error: false } : { error: true, needKey }) };
+  if (S.an && S.an.key === key) render();
+}
+
+async function aiChat(sys, user) {
   let text = '', needKey = false;
   const headers = { 'Content-Type': 'application/json' };
   if (CONFIG.AI.API_KEY) headers.Authorization = 'Bearer ' + CONFIG.AI.API_KEY;
@@ -973,10 +987,34 @@ async function aiExplain() {
       if (text) break;
     } catch { }
   }
-  text = (text || '').replace(/[*#`]/g, '').trim().slice(0, 1500);
-  S.ai[key] = text ? { text } : { error: true, needKey };
+  return { text, needKey };
+}
+
+/* ── Оценка ИИ: «куда скорее» по уже посчитанным цифрам. Это НЕ сигнал: сохраняется отдельно,
+   проверяется по свечам так же, как сигналы, и её реальная точность показывается рядом. ── */
+async function aiLean() {
+  const an = S.an; if (!an || an.status !== 'ok' || isLocked('ai')) return;
+  const a = ASSET[an.assetId], r = an.r, key = an.key;
+  S.aiLean[key] = { loading: true }; render();
+  const facts = {
+    asset: a.name, horizon_min: an.exp, close: fp(a, r.close), rsi14: r.rsi.toFixed(1),
+    bb_lower: fp(a, r.bb.lower), bb_mid: fp(a, r.bb.mid), bb_upper: fp(a, r.bb.upper),
+    trend_15m: r.trend.dir, ema20_vs_ema50_pct: r.trend.diffPct.toFixed(3),
+    nearest_level: r.level.type === 'high' ? '60m high above' : '60m low below', distance_to_level: fdist(a, r.level.dist), avg_5min_move: fdist(a, r.move)
+  };
+  const sys = 'You estimate the more likely short-term direction from technical indicators. Reply ONLY with JSON: {"lean":"up"|"down"|"neutral","reason":"<one short sentence in ' +
+    (S.lang === 'ru' ? 'Russian' : 'English') + '>"}. Use "neutral" when there is no clear edge. Never promise accuracy.';
+  const { text, needKey } = await aiChat(sys, JSON.stringify(facts));
+  let lean = null, reason = '';
+  try { const j = JSON.parse((text.match(/\{[\s\S]*\}/) || [''])[0]); if (['up', 'down', 'neutral'].includes(j.lean)) { lean = j.lean; reason = String(j.reason || '').slice(0, 300); } } catch { }
+  if (!lean) { S.aiLean[key] = { error: true, needKey }; if (S.an && S.an.key === key) render(); return; }
+  if (lean !== 'neutral') {
+    AIStore.add({ id: Date.now(), ts: Date.now(), assetId: a.id, cls: a.cls, dir: lean, exp: an.exp, sigClose: an.sigClose, entryT: an.sigClose, status: 'pending', entry: null, exit: null });
+  }
+  S.aiLean[key] = { lean, reason };
   if (S.an && S.an.key === key) render();
 }
+const aiAccuracy = () => statsOf(AIStore.all());
 
 /* ═════════════════════════ ТЕКСТЫ ПОСТОВ ═════════════════════════ */
 function postSignalText(r) {
@@ -1083,6 +1121,22 @@ function checksHtml(r, a, side) {
   return `<ul class="checks">${rows.map(([ok, l, v]) => `<li><span class="${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'}</span><span>${l} <small>— ${v}</small></span></li>`).join('')}</ul>`;
 }
 
+function leanHtml(an) {
+  const L = S.aiLean[an.key], acc = aiAccuracy(), n = acc.w + acc.l;
+  const accLine = `<p class="note" style="margin:6px 0 0">${t('leanAcc', { p: pct(acc.wr), n })}${n < 30 ? ' · ' + t('leanFew') : ''}</p>`;
+  let body;
+  if (!L) body = `<button class="btn ghost sm" data-act="ailean">${t('leanBtn')}</button>`;
+  else if (L.loading) body = `<div class="spin"></div>`;
+  else if (L.error) body = `<p class="warn" style="margin:0">${t('aiErr')}</p>${L.needKey && isAdmin ? `<p class="note">${t('aiKey')}</p>` : ''}<button class="btn ghost sm" data-act="ailean">${t('retry')}</button>`;
+  else {
+    const c = { up: 'c-up', down: 'c-down', neutral: 'c-none' }[L.lean];
+    body = `<p style="margin:0;font-size:18px;font-weight:800" class="${c}">${t('lean_' + L.lean)}</p>
+      ${L.reason ? `<p class="note" style="margin:4px 0 0">${esc(L.reason)}</p>` : ''}`;
+  }
+  return `<div class="mt" style="border-top:1px solid var(--border);padding-top:12px"><div class="label">${t('leanTitle')}</div>${body}
+    <p class="note warn" style="margin:8px 0 0">${t('leanWarn')}</p>${accLine}</div>`;
+}
+
 function vSignal() {
   const an = S.an; if (!an) { S.screen = 'select'; return vSelect(); }
   const a = ASSET[an.assetId];
@@ -1099,7 +1153,7 @@ function vSignal() {
       : [`${t('close')} ${fp(a, r.close)} > ${t('bbUp')} ${fp(a, r.bb.upper)}`, `RSI ${r.rsi.toFixed(1)} > 70`, `${t('trendCard')}: ${t({ up: 'tUp', down: 'tDown', flat: 'tFlat' }[r.trend.dir])}`];
   }
   const ai = S.ai[an.key];
-  const aiBlock = !CONFIG.AI.ENABLED ? '' : `<div class="card"><div class="label">${t('aiTitle')}</div>${isLocked('ai') ? lockCard() : ai ? (ai.loading ? `<div class="spin"></div><p class="note center">${t('aiLoading')}</p>` : ai.error ? `<p class="warn">${t('aiErr')}</p>${ai.needKey && isAdmin ? `<p class="note">${t('aiKey')}</p>` : ''}<button class="btn ghost sm" data-act="ai">${t('retry')}</button>` : `<div class="ai">${esc(ai.text)}</div><p class="note mt">${t('aiNote')}</p>`) : `<button class="btn ghost sm" data-act="ai">${t('aiBtn')}</button>`}</div>`;
+  const aiBlock = !CONFIG.AI.ENABLED ? '' : `<div class="card"><div class="label">${t('aiTitle')}</div>${isLocked('ai') ? lockCard() : ai ? (ai.loading ? `<div class="spin"></div><p class="note center">${t('aiLoading')}</p>` : ai.error ? `<p class="warn">${t('aiErr')}</p>${ai.needKey && isAdmin ? `<p class="note">${t('aiKey')}</p>` : ''}<button class="btn ghost sm" data-act="ai">${t('retry')}</button>` : `<div class="ai">${esc(ai.text)}</div><p class="note mt">${t('aiNote')}</p>`) : `<button class="btn ghost sm" data-act="ai">${t('aiBtn')}</button>`}${isLocked('ai') ? '' : leanHtml(an)}</div>`;
   return back + `
   <div class="card asset-head">${icon(a, true)}<div><b>${a.name}</b><div class="note">${an.exp} ${t('min')} · ${t('sigCandle', { t: hm(new Date(an.sigClose - 60000)) })}</div></div></div>
   <div class="dir ${d}">
@@ -1429,6 +1483,7 @@ document.addEventListener('click', async e => {
   switch (ds.act) {
     case 'analyze': return runAnalysis();
     case 'ai': return aiExplain();
+    case 'ailean': return aiLean();
     case 'ref': return openExternal(refLink());
     case 'help': return openTg(supportLink());
     case 'copyid': if (tgUser) copyText(String(tgUser.id)); return;
@@ -1437,7 +1492,7 @@ document.addEventListener('click', async e => {
     case 'copy': if (rec) copyText(postSignalText(rec)); return;
     case 'postres': if (rec) { await postToChannel(postResultText(rec)); Store.patch(id, { resultPosted: true }); render(); } return;
     case 'copyres': if (rec) copyText(postResultText(rec)); return;
-    case 'clear': if (await confirmBox(t('clearQ'))) { Store.clear(); S.currentId = null; render(); } return;
+    case 'clear': if (await confirmBox(t('clearQ'))) { Store.clear(); AIStore.clear(); S.currentId = null; render(); } return;
     case 'postday': { const n = dayList().filter(r => !r.resultPosted).length; if (n && !(await confirmBox(t('dayWarn', { n })))) return; await postToChannel(dayText()); return; }
     case 'copyday': return copyText(dayText());
     case 'reftest': if (refValid(S.refDraft)) openExternal(buildRef(S.refDraft.url, S.refDraft.param, 'test')); return;
