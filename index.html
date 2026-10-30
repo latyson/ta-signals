@@ -179,7 +179,7 @@ const CONFIG = {
     // Любой совместимый /v1/chat/completions. По умолчанию — бесплатный Pollinations без ключа.
     ENDPOINT: "https://gen.pollinations.ai/v1/chat/completions",
     MODEL:    "openai",                   // имя модели у провайдера (в интерфейсе не показывается)
-    API_KEY:  "",                         // бесплатный publishable-ключ pk_… с enter.pollinations.ai (виден в клиенте — только pk_, не sk_!)
+    API_KEY:  "pk_cvDpF1XESM89TYhT",                       // бесплатный publishable-ключ pk_… с enter.pollinations.ai (виден в клиенте — только pk_, не sk_!)
     FALLBACK_ENDPOINT: "https://enter.pollinations.ai/api/generate/v1/chat/completions"
   }
 };
@@ -345,7 +345,7 @@ const I18N = {
     sigCandle: 'Сигнальная свеча {t} МСК', price: 'Цена',
     where: 'Где торговать', aiBtn: '🤖 ИИ-разбор', aiLoading: 'ИИ разбирает расчёты…', aiErr: 'ИИ сейчас недоступен, попробуйте позже.',
     aiNote: 'Комментарий ИИ поясняет расчёты и не влияет на сигнал.', aiTitle: 'ИИ-разбор',
-    aiKey: 'Админу: провайдер ИИ требует ключ — впишите бесплатный ключ в CONFIG.AI.API_KEY (см. README).',
+    aiKey: 'Админу: ключ ИИ не подходит или для него не разрешены текстовые модели. enter.pollinations.ai → Keys → ваш ключ → разрешите модель «openai» (Text). См. README, раздел 4.',
     toResult: 'К результату →', again: 'Новый анализ', change: '← Изменить актив',
     disc: 'Инструмент технического анализа. Расчёт по рыночным котировкам (Binance, Twelve Data), у брокера цена может отличаться. Не является инвестиционной рекомендацией и не гарантирует результат. Торговля бинарными опционами связана с высоким риском потери средств.',
     sendCh: '📤 Отправить в канал', copy: '📋 Копировать', copied: 'Скопировано', sendRes: '📤 Отправить результат',
@@ -384,7 +384,19 @@ const I18N = {
     admIdPh: 'Telegram ID', admAdd: 'Выдать', admViaWorker: 'Выдача и снятие срабатывают сразу (через Worker).',
     admViaGit: 'Изменения сохранятся для всех после «Копировать settings.json» → GitHub → Commit (блок внизу).',
     admSaveTitle: 'Сохранить настройки для всех', badId: 'Неверный ID', granted: 'Доступ выдан', grantedDraft: 'Добавлено — сохраните settings.json', revoked: 'Доступ снят',
-    sentBot: 'Отправлено ботом в канал', sendFail: 'Бот не отправил ({e}) — открываю «Поделиться»'
+    sentBot: 'Отправлено ботом', sendFail: 'Бот не отправил ({e})',
+    botConnected: 'Бот подключён', botHow: 'Чтобы бот сам постил в канал и делал рассылку без сервера, вставьте токен бота. Он сохранится только на этом телефоне.',
+    botTokenPh: 'Токен бота из @BotFather', botTokenReplace: 'Новый токен (если нужно заменить)', botChannelPh: 'Канал: @имя_канала или -100…',
+    botSave: 'Сохранить', botSaved: 'Сохранено', botBadToken: 'Неверный формат токена', botBadChannel: 'Канал: @имя или -100…', botCheckFail: 'Токен не подошёл: {e}',
+    botForget: 'Удалить токен с этого устройства', botForgetQ: 'Удалить токен бота с этого телефона?',
+    botSafety: 'Токен хранится только в памяти этого телефона и не попадает в код сайта. Не вводите его на чужих устройствах. Бот должен быть админом канала.',
+    autoLocal: 'Автопостинг, пока приложение открыто', autoLocalNote: 'Раз в минуту проверяет EUR/USD, BTC, ETH и сам постит сигналы и итоги. Работает, только пока приложение открыто и экран включён; круглосуточно — через Worker (README, раздел 7).',
+    bcTitle: 'Рассылка в боте', bcNeedBot: 'Для рассылки подключите бота (токен) в блоке выше.', bcSubs: 'Подписчиков', bcSyncing: 'Обновляем список…',
+    bcSync: '🔄 Обновить подписчиков', bcHow: 'Подписчик — тот, кто нажал Start в боте. Telegram хранит новые /start только 24 часа — открывайте админку хотя бы раз в сутки. Новым подписчикам бот отвечает приветствием при обновлении.',
+    bcWelcome: 'Приветствие на /start', bcMessage: 'Сообщение', bcPh: 'Текст рассылки', bcSend: '📣 Отправить всем ({n})', bcConfirm: 'Отправить сообщение {n} подписчикам?',
+    bcEmpty: 'Введите текст', bcProgress: 'Отправлено {done}/{total}: успешно {ok}, ошибок {fail}', bcRemoved: 'удалено заблокировавших бота: {n}',
+    bcWebhook: 'У бота включён webhook — список подписчиков так не получить. Отключите webhook.',
+    welcomeDefault: 'Привет! Нажмите кнопку ниже, чтобы открыть приложение. Это инструмент технического анализа, не гарантия результата. Торговля связана с риском потери средств.'
   },
   en: {
     tagline: 'Technical analysis · signals', s1: 'Signal', s2: 'Result', s3: 'History',
@@ -407,7 +419,7 @@ const I18N = {
     sigCandle: 'Signal candle {t} MSK', price: 'Price',
     where: 'Where to trade', aiBtn: '🤖 AI review', aiLoading: 'AI is reviewing the numbers…', aiErr: 'AI is unavailable right now, try later.',
     aiNote: 'The AI comment explains the numbers and does not change the signal.', aiTitle: 'AI review',
-    aiKey: 'Admin: the AI provider requires a key — put a free key into CONFIG.AI.API_KEY (see README).',
+    aiKey: 'Admin: the AI key is rejected or has no text models allowed. enter.pollinations.ai → Keys → your key → allow the “openai” model (Text). See README, section 4.',
     toResult: 'To result →', again: 'New analysis', change: '← Change asset',
     disc: 'Technical analysis tool. Calculated from market quotes (Binance, Twelve Data); the broker’s price may differ. Not investment advice and no guarantee of results. Binary options trading carries a high risk of losing money.',
     sendCh: '📤 Send to channel', copy: '📋 Copy', copied: 'Copied', sendRes: '📤 Send result',
@@ -446,7 +458,19 @@ const I18N = {
     admIdPh: 'Telegram ID', admAdd: 'Grant', admViaWorker: 'Grant and revoke apply instantly (via Worker).',
     admViaGit: 'Changes apply for everyone after “Copy settings.json” → GitHub → Commit (block below).',
     admSaveTitle: 'Save settings for everyone', badId: 'Invalid ID', granted: 'Access granted', grantedDraft: 'Added — save settings.json', revoked: 'Access revoked',
-    sentBot: 'Sent to channel by the bot', sendFail: 'Bot failed ({e}) — opening Share'
+    sentBot: 'Sent by the bot', sendFail: 'Bot failed ({e})',
+    botConnected: 'Bot connected', botHow: 'Paste the bot token so the bot posts to the channel and sends broadcasts without a server. It is stored only on this phone.',
+    botTokenPh: 'Bot token from @BotFather', botTokenReplace: 'New token (to replace)', botChannelPh: 'Channel: @channel_name or -100…',
+    botSave: 'Save', botSaved: 'Saved', botBadToken: 'Invalid token format', botBadChannel: 'Channel: @name or -100…', botCheckFail: 'Token rejected: {e}',
+    botForget: 'Remove token from this device', botForgetQ: 'Remove the bot token from this phone?',
+    botSafety: 'The token is stored only on this phone and never goes into the site code. Do not enter it on other devices. The bot must be a channel admin.',
+    autoLocal: 'Auto-posting while the app is open', autoLocalNote: 'Every minute checks EUR/USD, BTC, ETH and posts signals and results. Works only while the app is open and the screen is on; 24/7 needs the Worker (README, section 7).',
+    bcTitle: 'Bot broadcast', bcNeedBot: 'Connect the bot (token) above to send broadcasts.', bcSubs: 'Subscribers', bcSyncing: 'Updating list…',
+    bcSync: '🔄 Update subscribers', bcHow: 'A subscriber is anyone who pressed Start in the bot. Telegram keeps new /start events for 24 hours only — open the admin panel at least daily. New subscribers get the welcome message on update.',
+    bcWelcome: 'Welcome on /start', bcMessage: 'Message', bcPh: 'Broadcast text', bcSend: '📣 Send to all ({n})', bcConfirm: 'Send the message to {n} subscribers?',
+    bcEmpty: 'Enter text', bcProgress: 'Sent {done}/{total}: ok {ok}, errors {fail}', bcRemoved: 'removed users who blocked the bot: {n}',
+    bcWebhook: 'The bot has a webhook set — the subscriber list cannot be read this way. Remove the webhook.',
+    welcomeDefault: 'Hi! Tap the button below to open the app. It is a technical analysis tool, not a guarantee of results. Trading carries a risk of losing money.'
   }
 };
 const HOW = {
@@ -759,13 +783,113 @@ async function checkWorkerAccess() {
   if (!CONFIG.WORKER_URL || !tgUser || isRealAdmin) return;
   try { if ((await workerApi('me')).unlocked) { S.workerUnlocked = true; render(); } } catch { }
 }
-// бот (через Worker) или окно «Поделиться», если Worker не настроен/недоступен
-async function postToChannel(text) {
+/* ── Бот без сервера: токен хранится только на устройстве админа (localStorage), не в коде.
+   Запросы — form-urlencoded, чтобы браузер не делал CORS-preflight (Bot API его не пропускает). ── */
+const BOT = {
+  get() { return LS.get('ta_bot', { token: '', channel: '', name: '' }); },
+  set(v) { LS.set('ta_bot', { ...BOT.get(), ...v }); }
+};
+const botReady = () => isAdmin && /^\d+:[\w-]{30,}$/.test(BOT.get().token);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function botApi(method, params = {}, token = BOT.get().token) {
+  const body = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v != null) body.set(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
+  const r = await fetch(`https://api.telegram.org/bot${token}/${method}`, { method: 'POST', body });
+  const d = await r.json().catch(() => ({}));
+  if (!d.ok) { const e = new Error(d.description || 'HTTP ' + r.status); e.code = d.error_code; e.retry = d.parameters && d.parameters.retry_after; throw e; }
+  return d.result;
+}
+const appButton = () => ({ inline_keyboard: [[{ text: S.lang === 'ru' ? '📊 Открыть приложение' : '📊 Open app', url: appLink('channel') }]] });
+async function botSend(chatId, text, withButton = true) {
+  return botApi('sendMessage', { chat_id: chatId, text: String(text).slice(0, 4000), disable_web_page_preview: true, reply_markup: withButton ? appButton() : null });
+}
+
+// приоритет: Worker → бот с токеном на этом устройстве → окно «Поделиться»
+async function postToChannel(text, withButton = true) {
   if (CONFIG.WORKER_URL && tg && tg.initData) {
-    try { await workerApi('post', { text }); toast(t('sentBot')); return; }
+    try { await workerApi('post', { text }); toast(t('sentBot')); return true; }
+    catch (e) { toast(t('sendFail', { e: e.message })); }
+  }
+  if (botReady() && BOT.get().channel) {
+    try { await botSend(BOT.get().channel, text, withButton); toast(t('sentBot')); return true; }
     catch (e) { toast(t('sendFail', { e: e.message })); }
   }
   shareToChannel(text);
+  return false;
+}
+
+/* ── подписчики бота: собираем из getUpdates (Telegram хранит апдейты 24 ч) ── */
+const SUBS = { get: () => LS.get('ta_subs', []), set: v => LS.set('ta_subs', v) };
+const welcomeText = () => LS.get('ta_welcome', t('welcomeDefault'));
+async function syncSubscribers(silent) {
+  if (!botReady()) return;
+  S.subSync = 'running'; if (!silent && S.screen === 'admin') render();
+  try {
+    const subs = SUBS.get(), byId = new Map(subs.map(s => [s.id, s]));
+    let offset = LS.get('ta_upd_off', 0), added = 0, more = true;
+    while (more) {
+      const ups = await botApi('getUpdates', { offset, limit: 100, timeout: 0, allowed_updates: ['message', 'my_chat_member'] });
+      for (const u of ups) {
+        offset = u.update_id + 1;
+        const m = u.message, cm = u.my_chat_member;
+        if (m && m.chat && m.chat.type === 'private') {
+          if (!byId.has(m.chat.id)) { byId.set(m.chat.id, { id: m.chat.id, name: m.chat.first_name || '', u: m.chat.username || '', ts: m.date * 1000 }); added++; }
+          if (typeof m.text === 'string' && m.text.startsWith('/start')) { try { await botSend(m.chat.id, welcomeText()); } catch { } }
+        }
+        if (cm && cm.chat && cm.chat.type === 'private' && cm.new_chat_member && cm.new_chat_member.status === 'kicked') byId.delete(cm.chat.id);
+      }
+      LS.set('ta_upd_off', offset);
+      more = ups.length === 100;
+    }
+    SUBS.set([...byId.values()]);
+    S.subSync = { ok: true, added, at: Date.now() };
+  } catch (e) { S.subSync = { error: e.code === 409 ? t('bcWebhook') : e.message }; }
+  if (S.screen === 'admin') render();
+}
+async function broadcast(text) {
+  const subs = SUBS.get();
+  S.bc = { running: true, done: 0, total: subs.length, ok: 0, fail: 0 };
+  const blocked = new Set();
+  for (const s of subs) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try { await botSend(s.id, text); S.bc.ok++; break; }
+      catch (e) {
+        if (e.code === 429 && attempt === 0) { await sleep((e.retry || 1) * 1000 + 200); continue; }
+        if (e.code === 403 || e.code === 400) blocked.add(s.id);
+        S.bc.fail++; break;
+      }
+    }
+    S.bc.done++;
+    const el = document.getElementById('bcProgress'); if (el) el.textContent = t('bcProgress', S.bc);
+    await sleep(60); // ≈15 сообщений/с — ниже лимита Telegram
+  }
+  if (blocked.size) SUBS.set(SUBS.get().filter(s => !blocked.has(s.id)));
+  S.bc.running = false; S.bc.removed = blocked.size;
+  if (S.screen === 'admin') render();
+}
+
+/* ── автопостинг, пока приложение открыто у админа (без сервера) ── */
+const autoLocalOn = () => botReady() && !!BOT.get().channel && LS.get('ta_autolocal', false);
+async function autoLocalRun() {
+  const keys = LS.get('ta_autokeys', []);
+  for (const a of ASSETS.filter(x => x.src === 'binance' && isOpen(x.cls))) {
+    if (Store.all().some(r => r.auto && r.assetId === a.id && r.status === 'pending')) continue; // одна открытая сделка на актив
+    const res = await analyzeAsset(a);
+    if (res.status !== 'ok' || res.r.dir === 'none') continue;
+    const key = a.id + res.sigClose;
+    if (keys.includes(key) || Date.now() > res.sigClose + 50000) continue;
+    keys.push(key); LS.set('ta_autokeys', keys.slice(-200));
+    const r = res.r, id = Store.nextNo();
+    const rec = {
+      id, ts: Date.now(), assetId: a.id, name: a.name, cls: a.cls, dir: r.dir, exp: S.exp,
+      sigClose: res.sigClose, entryT: res.sigClose, deadline: res.sigClose + 60000,
+      close: r.close, rsi: r.rsi, trend: r.trend.dir, trendPct: r.trend.diffPct, level: r.level, move: r.move,
+      status: 'pending', entry: null, exit: null, posted: false, resultPosted: false, auto: true
+    };
+    Store.add(rec);
+    try { await botSend(BOT.get().channel, postSignalText(rec)); Store.patch(id, { posted: true }); } catch (e) { toast(t('sendFail', { e: e.message })); }
+  }
+  if (S.screen === 'admin' || S.screen === 'history') render();
 }
 
 let resolving = false;
@@ -781,7 +905,13 @@ async function resolvePending(force) {
       const a = ASSET[r.assetId];
       try {
         const res = Resolve.fromCandles(r, await getRange(a, r.entryT, r.exp));
-        if (res) { Store.patch(r.id, { status: res.outcome, entry: res.entry, exit: res.exit, resolvedAt: Date.now() }); changed = true; if (r.id === S.currentId) haptic(res.outcome === 'win' ? 'success' : 'warning'); }
+        if (res) {
+          const done = Store.patch(r.id, { status: res.outcome, entry: res.entry, exit: res.exit, resolvedAt: Date.now() }); changed = true;
+          if (r.id === S.currentId) haptic(res.outcome === 'win' ? 'success' : 'warning');
+          if (done.auto && done.posted && botReady() && BOT.get().channel) { // автопостинг: итог тоже сам
+            try { await botSend(BOT.get().channel, postResultText(done), false); Store.patch(r.id, { resultPosted: true }); } catch { }
+          }
+        }
         else Store.patch(r.id, now - due > 6 * 3600e3 ? { status: 'nodata' } : { nextTry: now + 15000 });
       } catch (e) {
         Store.patch(r.id, now - due > 6 * 3600e3 ? { status: 'nodata' } : { nextTry: now + (e.message === 'rate' ? 45000 : 15000) });
@@ -838,6 +968,8 @@ async function aiExplain() {
       if (!res.ok) continue;
       const j = await res.json();
       text = j.choices?.[0]?.message?.content || '';
+      // Pollinations возвращает 200 с текстом ошибки, если модель не разрешена для ключа
+      if (/isn.t allowed to use|api key/i.test(text)) { needKey = true; text = ''; continue; }
       if (text) break;
     } catch { }
   }
@@ -1088,8 +1220,37 @@ function admStats() {
     ${rows ? `<table class="t mt"><tr><th>${t('asset')}</th><th>N</th><th>+</th><th>−</th><th>%</th></tr>${rows}</table>` : ''}
     <p class="note mt" style="margin-bottom:0">${t('admStatsCap')}</p></div>`;
 }
+function admLocalBot() {
+  const b = BOT.get(), ready = botReady();
+  const masked = ready ? b.token.split(':')[0] + ':••••••' : '';
+  return `<div class="card"><div class="label">${t('admBot')}</div>
+    ${ready ? `<p style="margin:0 0 8px">✅ ${t('botConnected')}${b.name ? ' @' + esc(b.name) : ''} <span class="note">(${esc(masked)})</span></p>` : `<p class="note" style="margin-top:0">${t('botHow')}</p>`}
+    <input class="inp" id="botToken" type="password" autocomplete="off" placeholder="${ready ? t('botTokenReplace') : t('botTokenPh')}">
+    <input class="inp" id="botChannel" autocomplete="off" placeholder="${t('botChannelPh')}" value="${esc(b.channel)}">
+    <div class="row"><button class="btn sm" data-act="botsave">${t('botSave')}</button>${ready ? `<button class="btn ghost sm" data-act="bottest">${t('admTest')}</button>` : ''}</div>
+    ${ready && b.channel ? `<button class="chip mt ${LS.get('ta_autolocal', false) ? 'on' : ''}" data-act="autolocal">${LS.get('ta_autolocal', false) ? '✓ ' : ''}${t('autoLocal')}</button><p class="note" style="margin:6px 0 0">${t('autoLocalNote')}</p>` : ''}
+    ${ready ? `<button class="btn ghost sm mt" data-act="botforget">${t('botForget')}</button>` : ''}
+    <p class="note mt" style="margin-bottom:0">${t('botSafety')}</p></div>`;
+}
+function admBroadcast() {
+  if (!botReady()) return `<div class="card"><div class="label">${t('bcTitle')}</div><p class="note" style="margin:0">${t('bcNeedBot')}</p></div>`;
+  const subs = SUBS.get(), ss = S.subSync, bc = S.bc;
+  if (!ss) setTimeout(() => syncSubscribers(true), 0);
+  return `<div class="card"><div class="label">${t('bcTitle')}</div>
+    <p style="margin:0 0 6px">${t('bcSubs')}: <b>${subs.length}</b>${ss && ss.ok ? ` <span class="note">· +${ss.added}</span>` : ''}</p>
+    ${ss === 'running' ? `<p class="note">${t('bcSyncing')}</p>` : ss && ss.error ? `<p class="warn">${esc(ss.error)}</p>` : ''}
+    <button class="btn ghost sm" data-act="subsync">${t('bcSync')}</button>
+    <p class="note">${t('bcHow')}</p>
+    <div class="label mt">${t('bcWelcome')}</div>
+    <textarea class="inp" id="welcomeTxt" rows="3">${esc(welcomeText())}</textarea>
+    <button class="btn ghost sm" data-act="welcomesave">${t('botSave')}</button>
+    <div class="label mt">${t('bcMessage')}</div>
+    <textarea class="inp" id="bcTxt" rows="4" placeholder="${t('bcPh')}"></textarea>
+    <button class="btn sm" data-act="bcsend" ${!subs.length || (bc && bc.running) ? 'disabled' : ''}>${t('bcSend', { n: subs.length })}</button>
+    <p class="note" id="bcProgress" style="margin-bottom:0">${bc ? t('bcProgress', bc) + (bc.running ? '' : bc.removed ? ' · ' + t('bcRemoved', { n: bc.removed }) : '') : ''}</p></div>`;
+}
 function admBot() {
-  if (!CONFIG.WORKER_URL) return `<div class="card"><div class="label">${t('admBot')}</div><p class="note" style="margin:0">${t('admNoWorker')}</p></div>`;
+  if (!CONFIG.WORKER_URL) return admLocalBot() + admBroadcast();
   const W = S.worker;
   if (!W) { S.worker = { loading: true }; setTimeout(loadWorkerStatus, 0); }
   if (!W || W.loading) return `<div class="card"><div class="label">${t('admBot')}</div><div class="spin"></div></div>`;
@@ -1119,7 +1280,7 @@ function vAdmin() {
   if (!S.idsDraft) S.idsDraft = Array.isArray(REMOTE.data.UNLOCKED_IDS) ? REMOTE.data.UNLOCKED_IDS.map(Number).filter(Number.isFinite) : [];
   if (S.srcSub == null) S.srcSub = 'yt01';
   if (!S.ap) S.ap = 'd7';
-  return admStats() + admBot() + admAccess() + vRef() + `
+  return admStats() + admBot() + (CONFIG.WORKER_URL ? admLocalBot() + admBroadcast() : '') + admAccess() + vRef() + `
   <div class="card"><div class="label">${t('admSaveTitle')}</div>
     <p class="note" style="margin-top:0">${t('refHow')}</p>
     <button class="btn sm" data-act="copysettings">${t('refCopyJson')}</button>
@@ -1234,6 +1395,10 @@ function tick() {
   if (S.screen === 'scan' && S.scan && S.scan.auto && !S.scan.running && new Date(now).getSeconds() >= 3 && S.scan.lastMin !== Math.floor(now / 60000)) {
     S.scan.lastMin = Math.floor(now / 60000); scanAll();
   }
+  // автопостинг без сервера: раз в минуту, пока приложение открыто у админа
+  if (autoLocalOn() && new Date(now).getSeconds() >= 3 && S.autoMin !== Math.floor(now / 60000)) {
+    S.autoMin = Math.floor(now / 60000); autoLocalRun();
+  }
   let rerender = false;
   document.querySelectorAll('[data-due]').forEach(el => { const left = +el.dataset.due - now; el.textContent = mmss(left); if (left <= 0) rerender = true; });
   if (rerender) render();
@@ -1288,6 +1453,27 @@ document.addEventListener('click', async e => {
         try { S.worker.data.access = (await workerApi('grant', { id: nid })).access; toast(t('granted')); } catch (err) { toast(err.message); }
       } else if (!S.idsDraft.includes(nid)) { S.idsDraft.push(nid); toast(t('grantedDraft')); }
       return render();
+    }
+    case 'botsave': {
+      const tok = (document.getElementById('botToken').value || '').trim(), ch = (document.getElementById('botChannel').value || '').trim();
+      if (ch && !/^(@[A-Za-z0-9_]{4,}|-100\d{5,})$/.test(ch)) return toast(t('botBadChannel'));
+      if (tok) {
+        if (!/^\d+:[\w-]{30,}$/.test(tok)) return toast(t('botBadToken'));
+        try { const me = await botApi('getMe', {}, tok); BOT.set({ token: tok, name: me.username }); }
+        catch (err) { return toast(t('botCheckFail', { e: err.message })); }
+      }
+      BOT.set({ channel: ch }); S.subSync = null; toast(t('botSaved')); return render();
+    }
+    case 'bottest': try { await botSend(BOT.get().channel, t('testPost')); toast(t('sentBot')); } catch (err) { toast(t('sendFail', { e: err.message })); } return;
+    case 'botforget': if (await confirmBox(t('botForgetQ'))) { LS.set('ta_bot', { token: '', channel: BOT.get().channel, name: '' }); LS.set('ta_autolocal', false); render(); } return;
+    case 'autolocal': LS.set('ta_autolocal', !LS.get('ta_autolocal', false)); S.autoMin = null; return render();
+    case 'subsync': return syncSubscribers();
+    case 'welcomesave': LS.set('ta_welcome', (document.getElementById('welcomeTxt').value || '').trim() || t('welcomeDefault')); return toast(t('botSaved'));
+    case 'bcsend': {
+      const txt = (document.getElementById('bcTxt').value || '').trim(), n = SUBS.get().length;
+      if (!txt) return toast(t('bcEmpty'));
+      if (!(await confirmBox(t('bcConfirm', { n })))) return;
+      return broadcast(txt);
     }
     case 'wreload': return loadWorkerStatus();
     case 'wauto': try { await workerApi('setAuto', { on: !S.worker.data.auto }); } catch (err) { toast(err.message); } return loadWorkerStatus();
