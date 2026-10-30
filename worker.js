@@ -10,6 +10,7 @@
      AUTO_ASSETS    — необязательно, по умолчанию "EURUSD,BTCUSD,ETHUSD"
      AUTO_EXP       — необязательно: 1, 3 или 5 (по умолчанию 5)
      PAYOUT         — необязательно, по умолчанию 0.8
+     OPENROUTER_KEY — тип Secret, необязательно: ключ openrouter.ai — ИИ-кнопки заработают у всех пользователей
    Bindings → KV namespace, имя переменной STATE.
    Trigger events → Cron Trigger "* * * * *".
 
@@ -90,6 +91,13 @@ const Signal = {
     const all = o => o.bb && o.rsi && o.trend;
     const dir = all(checks.up) ? 'up' : all(checks.down) ? 'down' : 'none';
     return { dir, close: last.c, candle: last, rsi, bb, trend, level, move, checks };
+  },
+  // «Перевес» для админа: направление есть всегда, но это НЕ сигнал — сила показывает, насколько он выражен
+  lean(r) {
+    const half = (r.bb.upper - r.bb.mid) || 1e-12;
+    const score = (50 - r.rsi) / 20 + (r.bb.mid - r.close) / half + ({ up: 0.5, down: -0.5, flat: 0 }[r.trend.dir]);
+    const s = Math.abs(score);
+    return { dir: score >= 0 ? 'up' : 'down', score, strength: s < 0.5 ? 'weak' : s < 1.2 ? 'mid' : 'strong' };
   }
 };
 
@@ -261,6 +269,23 @@ async function handle(req, env) {
   const admin = admins.includes(user.id), kv = !!env.STATE;
   const access = kv ? await kvGet(env, 'access', []) : [];
   if (b.action === 'me') return json({ ok: true, id: user.id, admin, unlocked: admin || access.includes(user.id) });
+  // ИИ для всех пользователей: ключ OpenRouter хранится в секрете OPENROUTER_KEY, в браузер не попадает
+  if (b.action === 'ai') {
+    if (!env.OPENROUTER_KEY) return json({ ok: false, error: 'no ai key' }, 500);
+    const messages = [{ role: 'system', content: String(b.sys || '').slice(0, 2000) }, { role: 'user', content: String(b.user || '').slice(0, 4000) }];
+    for (const model of String(env.AI_MODELS || 'nvidia/nemotron-3.5-lightning:free,google/gemma-4-31b-it:free').split(',')) {
+      try {
+        const r = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer ' + env.OPENROUTER_KEY },
+          body: JSON.stringify({ model: model.trim(), messages })
+        });
+        if (!r.ok) continue;
+        const d = await r.json(), text = d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content;
+        if (text) return json({ ok: true, text });
+      } catch { }
+    }
+    return json({ ok: false, error: 'ai unavailable' }, 502);
+  }
   if (!admin) return json({ ok: false, error: 'forbidden' }, 403);
   const needKv = () => json({ ok: false, error: 'KV STATE not bound' }, 500);
   try {

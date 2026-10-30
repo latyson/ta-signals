@@ -126,6 +126,10 @@ table.t td{padding:6px 4px;border-bottom:1px solid var(--border)}
 .id-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
 .id-row:last-child{border-bottom:0}
 table.t th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:4px}
+svg .su{stroke:var(--up);stroke-width:1}svg .sd{stroke:var(--down);stroke-width:1}
+svg .fu{fill:var(--up)}svg .fd{fill:var(--down)}
+svg .bbz{fill:rgba(59,130,246,.08)}svg .bbl{fill:none;stroke:rgba(96,165,250,.7);stroke-width:1.2;stroke-dasharray:4 3}
+svg .bbm{fill:none;stroke:rgba(148,163,184,.45);stroke-width:1}svg .lastl{stroke:rgba(255,255,255,.35);stroke-width:1;stroke-dasharray:2 3}
 @media (max-width:360px){.metrics{grid-template-columns:1fr 1fr}.dir .big{font-size:34px}}
 </style>
 </head>
@@ -178,8 +182,10 @@ const CONFIG = {
     ENABLED:  true,
     // Любой совместимый /v1/chat/completions. По умолчанию — бесплатные модели OpenRouter (суффикс :free).
     ENDPOINT: "https://openrouter.ai/api/v1/chat/completions",
-    MODELS:   ["google/gemma-4-31b-it:free", "nvidia/nemotron-3.5-super-vl:free"], // пробуются по очереди
-    API_KEY:  ""                          // ключ openrouter.ai с лимитом $0 — тогда доступны только бесплатные модели (README, раздел 4)
+    MODELS:   ["nvidia/nemotron-3.5-lightning:free", "google/gemma-4-31b-it:free", "google/gemma-4-26b-a4b-it:free"], // пробуются по очереди
+    // Ключ в публичный код НЕ кладём: GitHub найдёт его, и OpenRouter отключит ключ.
+    // Админ вставляет ключ в «⚙️ Админка → ИИ», он хранится только на его телефоне (README, раздел 4).
+    API_KEY:  ""
   }
 };
 
@@ -351,7 +357,7 @@ const I18N = {
     sigCandle: 'Сигнальная свеча {t} МСК', price: 'Цена',
     where: 'Где торговать', aiBtn: '🤖 ИИ-разбор', aiLoading: 'ИИ разбирает расчёты…', aiErr: 'ИИ сейчас недоступен, попробуйте позже.',
     aiNote: 'Комментарий ИИ поясняет расчёты и не влияет на сигнал.', aiTitle: 'ИИ-разбор',
-    aiKey: 'Админу: нет ключа ИИ или он отклонён. Создайте бесплатный ключ на openrouter.ai и впишите в CONFIG.AI.API_KEY (README, раздел 4).',
+    aiKey: 'Админу: нет ключа ИИ или он отклонён. «⚙️ Админка» → «ИИ (OpenRouter)» → вставьте ключ.',
     toResult: 'К результату →', again: 'Новый анализ', change: '← Изменить актив',
     disc: 'Инструмент технического анализа. Расчёт по рыночным котировкам (Binance, Twelve Data), у брокера цена может отличаться. Не является инвестиционной рекомендацией и не гарантирует результат. Торговля бинарными опционами связана с высоким риском потери средств.',
     sendCh: '📤 Отправить в канал', copy: '📋 Копировать', copied: 'Скопировано', sendRes: '📤 Отправить результат',
@@ -391,6 +397,13 @@ const I18N = {
     admViaGit: 'Изменения сохранятся для всех после «Копировать settings.json» → GitHub → Commit (блок внизу).',
     admSaveTitle: 'Сохранить настройки для всех', badId: 'Неверный ID', granted: 'Доступ выдан', grantedDraft: 'Добавлено — сохраните settings.json', revoked: 'Доступ снят',
     sentBot: 'Отправлено ботом', sendFail: 'Бот не отправил ({e})',
+    chartTitle: '1 мин · 60 свечей · Bollinger(20, 2)',
+    aiAdmTitle: 'ИИ (OpenRouter)', aiAdmHas: 'Ключ сохранён на этом телефоне — ИИ работает у вас.',
+    aiAdmHow: 'Вставьте ключ OpenRouter (Credit limit = 0). Он хранится только на этом телефоне: в публичный код ключ класть нельзя — GitHub его найдёт, и OpenRouter отключит ключ. Пользователям ИИ станет доступен через Worker (README, раздел 7).',
+    aiBadKey: 'Ключ должен начинаться с sk-or-v1-',
+    dbCaption: '🗄 База бота (подписчики и рассылки). Не удаляйте и не открепляйте.',
+    dbOk: '🗄 Общая база для всех админов: файл в чате бота с админом {id}.',
+    dbErr: 'Общая база недоступна ({e}). Админ {id} должен нажать Start в боте. Пока список хранится только на этом телефоне.',
     admLean: 'Админ · перевес индикаторов', admLeanNote: 'не сигнал: направление есть всегда, решение и ответственность — за вами',
     str_weak: 'слабый', str_mid: 'средний', str_strong: 'сильный',
     pubUp: '📤 Опубликовать ВЫШЕ', pubDown: '📤 Опубликовать НИЖЕ', pubExpired: 'Окно входа по этой свече прошло — обновите анализ.', pubDone: 'Сигнал #{n} опубликован',
@@ -435,7 +448,7 @@ const I18N = {
     sigCandle: 'Signal candle {t} MSK', price: 'Price',
     where: 'Where to trade', aiBtn: '🤖 AI review', aiLoading: 'AI is reviewing the numbers…', aiErr: 'AI is unavailable right now, try later.',
     aiNote: 'The AI comment explains the numbers and does not change the signal.', aiTitle: 'AI review',
-    aiKey: 'Admin: no AI key or it was rejected. Create a free key at openrouter.ai and put it into CONFIG.AI.API_KEY (README, section 4).',
+    aiKey: 'Admin: no AI key or it was rejected. “⚙️ Admin” → “AI (OpenRouter)” → paste the key.',
     toResult: 'To result →', again: 'New analysis', change: '← Change asset',
     disc: 'Technical analysis tool. Calculated from market quotes (Binance, Twelve Data); the broker’s price may differ. Not investment advice and no guarantee of results. Binary options trading carries a high risk of losing money.',
     sendCh: '📤 Send to channel', copy: '📋 Copy', copied: 'Copied', sendRes: '📤 Send result',
@@ -475,6 +488,13 @@ const I18N = {
     admViaGit: 'Changes apply for everyone after “Copy settings.json” → GitHub → Commit (block below).',
     admSaveTitle: 'Save settings for everyone', badId: 'Invalid ID', granted: 'Access granted', grantedDraft: 'Added — save settings.json', revoked: 'Access revoked',
     sentBot: 'Sent by the bot', sendFail: 'Bot failed ({e})',
+    chartTitle: '1 min · 60 candles · Bollinger(20, 2)',
+    aiAdmTitle: 'AI (OpenRouter)', aiAdmHas: 'Key saved on this phone — AI works for you.',
+    aiAdmHow: 'Paste your OpenRouter key (Credit limit = 0). It is stored only on this phone: a key in public code gets found by GitHub and disabled by OpenRouter. For users, AI needs the Worker (README, section 7).',
+    aiBadKey: 'The key must start with sk-or-v1-',
+    dbCaption: '🗄 Bot database (subscribers and broadcasts). Do not delete or unpin.',
+    dbOk: '🗄 Shared database for all admins: a file in the bot chat with admin {id}.',
+    dbErr: 'Shared database unavailable ({e}). Admin {id} must press Start in the bot. For now the list is stored only on this phone.',
     admLean: 'Admin · indicator lean', admLeanNote: 'not a signal: there is always a direction, the decision and responsibility are yours',
     str_weak: 'weak', str_mid: 'medium', str_strong: 'strong',
     pubUp: '📤 Publish HIGHER', pubDown: '📤 Publish LOWER', pubExpired: 'The entry window for this candle is over — refresh the analysis.', pubDone: 'Signal #{n} published',
@@ -745,7 +765,7 @@ async function analyzeAsset(a) {
     if (!last || last.t + 60000 < Date.now() - maxLag) throw new Error('stale');
     const r = Signal.compute(c1, c15);
     if (r.error) throw new Error(r.error);
-    return { status: 'ok', r, sigClose: r.candle.t + 60000 };
+    return { status: 'ok', r, sigClose: r.candle.t + 60000, c1 };
   } catch (e) { return { status: e.message === 'rate' ? 'rate' : 'nodata' }; }
 }
 
@@ -757,8 +777,8 @@ async function runAnalysis() {
   if (res.status === 'closed') { S.an = { status: 'closed', assetId: a.id, exp, opens: res.opens }; return render(); }
   if (res.status !== 'ok') { S.an = { status: 'nodata', assetId: a.id, exp }; return render(); }
   {
-    const { r, sigClose } = res;
-    const an = { status: 'ok', assetId: a.id, exp, r, sigClose, deadline: sigClose + 60000, key: a.id + sigClose + exp };
+    const { r, sigClose, c1 } = res;
+    const an = { status: 'ok', assetId: a.id, exp, r, sigClose, c1, deadline: sigClose + 60000, key: a.id + sigClose + exp };
     if (r.dir !== 'none') {
       const id = Store.nextNo();
       Store.add({
@@ -846,6 +866,41 @@ async function postToChannel(text, withButton = true) {
   return false;
 }
 
+/* ── «База данных» без сервера: JSON-файл, закреплённый ботом в его чате с первым админом.
+   Оба админа читают/пишут её через токен бота: getChat → pinned_message → getFile. ── */
+async function botForm(method, fd) {
+  const r = await fetch(`https://api.telegram.org/bot${BOT.get().token}/${method}`, { method: 'POST', body: fd });
+  const d = await r.json().catch(() => ({}));
+  if (!d.ok) { const e = new Error(d.description || 'HTTP ' + r.status); e.code = d.error_code; throw e; }
+  return d.result;
+}
+const DB = {
+  FILE: 'ta_db.json',
+  chat: () => CONFIG.ADMIN_IDS[0],
+  async load() {
+    const c = await botApi('getChat', { chat_id: DB.chat() });
+    const pm = c.pinned_message;
+    if (!pm || !pm.document || pm.document.file_name !== DB.FILE) return null;
+    const f = await botApi('getFile', { file_id: pm.document.file_id });
+    const r = await fetch(`https://api.telegram.org/file/bot${BOT.get().token}/${f.file_path}`);
+    if (!r.ok) throw new Error('db download ' + r.status);
+    const d = await r.json();
+    d.msg = pm.message_id;
+    return d;
+  },
+  async save(data) {
+    const prev = data.msg, fd = new FormData();
+    fd.append('chat_id', String(DB.chat()));
+    fd.append('document', new Blob([JSON.stringify({ ...data, msg: undefined, saved: Date.now() })], { type: 'application/json' }), DB.FILE);
+    fd.append('caption', t('dbCaption'));
+    fd.append('disable_notification', 'true');
+    const m = await botForm('sendDocument', fd);
+    await botApi('pinChatMessage', { chat_id: DB.chat(), message_id: m.message_id, disable_notification: true });
+    if (prev) { try { await botApi('deleteMessage', { chat_id: DB.chat(), message_id: prev }); } catch { } }
+    data.msg = m.message_id;
+  }
+};
+
 /* ── подписчики бота: собираем из getUpdates (Telegram хранит апдейты 24 ч) ── */
 const SUBS = { get: () => LS.get('ta_subs', []), set: v => LS.set('ta_subs', v) };
 const welcomeText = () => LS.get('ta_welcome', t('welcomeDefault'));
@@ -853,9 +908,17 @@ async function syncSubscribers(silent) {
   if (!botReady()) return;
   S.subSync = 'running'; if (!silent && S.screen === 'admin') render();
   try {
-    const subs = SUBS.get(), byId = new Map(subs.map(s => [s.id, s]));
+    // общая база в Telegram: объединяем то, что на телефоне, с тем, что сохранил другой админ
+    let remote = null;
+    try { remote = await DB.load(); S.dbErr = null; } catch (e) { S.dbErr = e.message; }
+    const blocked = new Set([...LS.get('ta_blocked', []), ...((remote && remote.blocked) || [])]);
+    const byId = new Map();
+    for (const s of [...((remote && remote.subs) || []), ...SUBS.get()]) if (!blocked.has(s.id) && !byId.has(s.id)) byId.set(s.id, s);
+    const drafts = [], seen = new Set();
+    for (const d of [...((remote && remote.drafts) || []), ...LS.get('ta_drafts', [])]) { const k = d.chat + ':' + d.id; if (!seen.has(k)) { seen.add(k); drafts.push(d); } }
+    const sig = d => [d.subs.length, d.drafts.length, d.blocked.length].join('/');
+    const before = remote ? sig({ subs: remote.subs || [], drafts: remote.drafts || [], blocked: remote.blocked || [] }) : '';
     let offset = LS.get('ta_upd_off', 0), added = 0, more = true;
-    const drafts = LS.get('ta_drafts', []);
     while (more) {
       const ups = await botApi('getUpdates', { offset, limit: 100, timeout: 0, allowed_updates: ['message', 'my_chat_member'] });
       for (const u of ups) {
@@ -867,16 +930,19 @@ async function syncSubscribers(silent) {
           drafts.push({ chat: m.chat.id, id: m.message_id, kind, group: m.media_group_id || null, preview: String(m.text || m.caption || '').slice(0, 80), ts: m.date * 1000 });
         }
         if (m && m.chat && m.chat.type === 'private') {
+          blocked.delete(m.chat.id); // снова написал боту — значит, разблокировал
           if (!byId.has(m.chat.id)) { byId.set(m.chat.id, { id: m.chat.id, name: m.chat.first_name || '', u: m.chat.username || '', ts: m.date * 1000 }); added++; }
           if (typeof m.text === 'string' && m.text.startsWith('/start')) { try { await botSend(m.chat.id, welcomeText()); } catch { } }
         }
-        if (cm && cm.chat && cm.chat.type === 'private' && cm.new_chat_member && cm.new_chat_member.status === 'kicked') byId.delete(cm.chat.id);
+        if (cm && cm.chat && cm.chat.type === 'private' && cm.new_chat_member && cm.new_chat_member.status === 'kicked') { byId.delete(cm.chat.id); blocked.add(cm.chat.id); }
       }
       LS.set('ta_upd_off', offset);
       more = ups.length === 100;
     }
-    SUBS.set([...byId.values()]);
-    LS.set('ta_drafts', drafts.slice(-40));
+    drafts.sort((x, y) => x.ts - y.ts);
+    const data = { v: 1, subs: [...byId.values()], drafts: drafts.slice(-40), blocked: [...blocked].slice(-5000), msg: remote && remote.msg };
+    SUBS.set(data.subs); LS.set('ta_drafts', data.drafts); LS.set('ta_blocked', data.blocked);
+    if (sig(data) !== before && !S.dbErr) { try { await DB.save(data); } catch (e) { S.dbErr = e.message; } }
     S.subSync = { ok: true, added, at: Date.now() };
   } catch (e) { S.subSync = { error: e.code === 409 ? t('bcWebhook') : e.message }; }
   if (S.screen === 'admin') render();
@@ -913,8 +979,12 @@ async function broadcast(text, draft) {
     const el = document.getElementById('bcProgress'); if (el) el.textContent = t('bcProgress', S.bc);
     await sleep(60); // ≈15 сообщений/с — ниже лимита Telegram
   }
-  if (blocked.size) SUBS.set(SUBS.get().filter(s => !blocked.has(s.id)));
+  if (blocked.size) {
+    SUBS.set(SUBS.get().filter(s => !blocked.has(s.id)));
+    LS.set('ta_blocked', [...new Set([...LS.get('ta_blocked', []), ...blocked])]);
+  }
   S.bc.running = false; S.bc.removed = blocked.size;
+  if (blocked.size) syncSubscribers(true); // сохранить изменения в общую базу
   if (S.screen === 'admin') render();
 }
 
@@ -1011,17 +1081,24 @@ async function aiExplain() {
   if (S.an && S.an.key === key) render();
 }
 
+// ключ ИИ: из CONFIG (если сервер/прокси) или с телефона админа — в публичный код его не кладём
+const aiKey = () => CONFIG.AI.API_KEY || (isAdmin ? LS.get('ta_ai_key', '') : '');
 async function aiChat(sys, user) {
-  let text = '', needKey = !CONFIG.AI.API_KEY;
+  const key = aiKey();
+  // без ключа на устройстве — через Worker (ключ лежит там в секрете), ИИ доступен всем пользователям
+  if (!key && CONFIG.WORKER_URL && tg && tg.initData) {
+    try { return { text: (await workerApi('ai', { sys, user })).text, needKey: false }; } catch { return { text: '', needKey: false }; }
+  }
+  let text = '', needKey = !key;
   if (needKey) return { text, needKey };
-  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + CONFIG.AI.API_KEY };
+  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key };
   for (const model of CONFIG.AI.MODELS) {
     try {
-      const ac = new AbortController(); setTimeout(() => ac.abort(), 30000);
+      const ac = new AbortController(); setTimeout(() => ac.abort(), 45000); // бесплатные модели бывают медленными
       const body = JSON.stringify({ model, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] });
       const res = await fetch(CONFIG.AI.ENDPOINT, { method: 'POST', headers, signal: ac.signal, body });
-      if (res.status === 401 || res.status === 402 || res.status === 403) { needKey = true; break; }
-      if (!res.ok) continue; // 429/5xx — пробуем следующую бесплатную модель
+      if (res.status === 401 || res.status === 402) { needKey = true; break; }
+      if (!res.ok) continue; // 403/429/5xx у конкретной модели — пробуем следующую бесплатную
       const j = await res.json();
       text = j.choices?.[0]?.message?.content || '';
       if (/api key|budget|insufficient credits/i.test(text)) { needKey = true; text = ''; break; }
@@ -1163,6 +1240,27 @@ function checksHtml(r, a, side) {
   return `<ul class="checks">${rows.map(([ok, l, v]) => `<li><span class="${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'}</span><span>${l} <small>— ${v}</small></span></li>`).join('')}</ul>`;
 }
 
+// мини-график: 60 последних закрытых минутных свечей + Bollinger(20, 2), рассчитанный по каждой точке
+function chartSvg(c1) {
+  if (!c1 || c1.length < 80) return '';
+  const N = 60, W = 340, H = 150, P = 4, closes = c1.map(c => c.c), from = c1.length - N;
+  const bands = [];
+  for (let i = from; i < c1.length; i++) bands.push(Indicators.bollinger(closes.slice(0, i + 1), 20, 2));
+  const view = c1.slice(from);
+  const lo = Math.min(...view.map(c => c.l), ...bands.map(b => b.lower)), hi = Math.max(...view.map(c => c.h), ...bands.map(b => b.upper));
+  const y = v => P + (hi - v) / ((hi - lo) || 1) * (H - 2 * P), step = W / N, bw = Math.max(1.5, step * 0.6);
+  const line = k => bands.map((b, i) => `${(i * step + step / 2).toFixed(1)},${y(b[k]).toFixed(1)}`).join(' ');
+  const candles = view.map((c, i) => {
+    const x = i * step + step / 2, up = c.c >= c.o, top = y(Math.max(c.o, c.c)), h = Math.max(1, Math.abs(y(c.o) - y(c.c)));
+    return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${y(c.h).toFixed(1)}" y2="${y(c.l).toFixed(1)}" class="${up ? 'su' : 'sd'}"/><rect x="${(x - bw / 2).toFixed(1)}" y="${top.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" class="${up ? 'fu' : 'fd'}"/>`;
+  }).join('');
+  const last = y(view.at(-1).c);
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" style="display:block" role="img" aria-label="chart">
+    <polygon points="${line('upper')} ${bands.map((b, i) => `${(i * step + step / 2).toFixed(1)},${y(b.lower).toFixed(1)}`).reverse().join(' ')}" class="bbz"/>
+    <polyline points="${line('upper')}" class="bbl"/><polyline points="${line('lower')}" class="bbl"/><polyline points="${line('mid')}" class="bbm"/>
+    ${candles}<line x1="0" x2="${W}" y1="${last.toFixed(1)}" y2="${last.toFixed(1)}" class="lastl"/></svg>`;
+}
+
 function adminLeanCard(an) {
   if (!isAdmin) return '';
   const L = Signal.lean(an.r), open = Date.now() < an.deadline;
@@ -1221,7 +1319,7 @@ function vSignal() {
       : [`${t('close')} ${fp(a, r.close)} > ${t('bbUp')} ${fp(a, r.bb.upper)}`, `RSI ${r.rsi.toFixed(1)} > 70`, `${t('trendCard')}: ${t({ up: 'tUp', down: 'tDown', flat: 'tFlat' }[r.trend.dir])}`];
   }
   const ai = S.ai[an.key];
-  const aiBlock = !CONFIG.AI.ENABLED ? '' : `<div class="card"><div class="label">${t('aiTitle')}</div>${isLocked('ai') ? lockCard() : ai ? (ai.loading ? `<div class="spin"></div><p class="note center">${t('aiLoading')}</p>` : ai.error ? `<p class="warn">${t('aiErr')}</p>${ai.needKey && isAdmin ? `<p class="note">${t('aiKey')}</p>` : ''}<button class="btn ghost sm" data-act="ai">${t('retry')}</button>` : `<div class="ai">${esc(ai.text)}</div><p class="note mt">${t('aiNote')}</p>`) : `<button class="btn ghost sm" data-act="ai">${t('aiBtn')}</button>`}${isLocked('ai') ? '' : leanHtml(an)}</div>`;
+  const aiBlock = !CONFIG.AI.ENABLED || (!aiKey() && !isAdmin && !CONFIG.WORKER_URL) ? '' : `<div class="card"><div class="label">${t('aiTitle')}</div>${isLocked('ai') ? lockCard() : ai ? (ai.loading ? `<div class="spin"></div><p class="note center">${t('aiLoading')}</p>` : ai.error ? `<p class="warn">${t('aiErr')}</p>${ai.needKey && isAdmin ? `<p class="note">${t('aiKey')}</p>` : ''}<button class="btn ghost sm" data-act="ai">${t('retry')}</button>` : `<div class="ai">${esc(ai.text)}</div><p class="note mt">${t('aiNote')}</p>`) : `<button class="btn ghost sm" data-act="ai">${t('aiBtn')}</button>`}${isLocked('ai') ? '' : leanHtml(an)}</div>`;
   return back + `
   <div class="card asset-head">${icon(a, true)}<div><b>${a.name}</b><div class="note">${an.exp} ${t('min')} · ${t('sigCandle', { t: hm(new Date(an.sigClose - 60000)) })}</div></div></div>
   <div class="dir ${d}">
@@ -1231,6 +1329,7 @@ function vSignal() {
     </div></div>
     ${d !== 'none' ? `<div class="instr">${esc(t('instr', { dir: dirWord, n: an.exp, asset: a.name }))}</div>` : ''}
   </div>
+  ${an.c1 ? `<div class="card" style="padding:10px"><div class="label" style="margin:2px 4px 6px">${t('chartTitle')}</div>${chartSvg(an.c1)}</div>` : ''}
   <div class="metrics">
     <div class="metric"><div class="k">${MI.trend}${t('trendCard')}</div><div class="v ${trendCls(r.trend.dir)}">${trendTxt(r.trend.dir)}</div><div class="s">EMA20/50 ${r.trend.diffPct >= 0 ? '+' : ''}${r.trend.diffPct.toFixed(3)}%</div></div>
     <div class="metric"><div class="k">${MI.level}${t('levelCard')}</div><div class="v">${fdist(a, r.level.dist)}</div><div class="s">${t(r.level.type === 'high' ? 'toHigh' : 'toLow')} ${fp(a, r.level.level)}</div></div>
@@ -1343,6 +1442,13 @@ function admStats() {
     ${rows ? `<table class="t mt"><tr><th>${t('asset')}</th><th>N</th><th>+</th><th>−</th><th>%</th></tr>${rows}</table>` : ''}
     <p class="note mt" style="margin-bottom:0">${t('admStatsCap')}</p></div>`;
 }
+function admAI() {
+  const has = !!LS.get('ta_ai_key', '');
+  return `<div class="card"><div class="label">${t('aiAdmTitle')}</div>
+    <p class="note" style="margin-top:0">${has ? '✅ ' + t('aiAdmHas') : t('aiAdmHow')}</p>
+    <input class="inp" id="aiKeyInp" type="password" autocomplete="off" placeholder="sk-or-v1-…">
+    <div class="row"><button class="btn sm" data-act="aikeysave">${t('botSave')}</button>${has ? `<button class="btn ghost sm" data-act="aikeyforget">${t('botForget')}</button>` : ''}</div></div>`;
+}
 function admLocalBot() {
   const b = BOT.get(), ready = botReady();
   const masked = ready ? b.token.split(':')[0] + ':••••••' : '';
@@ -1362,6 +1468,7 @@ function admBroadcast() {
   return `<div class="card"><div class="label">${t('bcTitle')}</div>
     <p style="margin:0 0 6px">${t('bcSubs')}: <b>${subs.length}</b>${ss && ss.ok ? ` <span class="note">· +${ss.added}</span>` : ''}</p>
     ${ss === 'running' ? `<p class="note">${t('bcSyncing')}</p>` : ss && ss.error ? `<p class="warn">${esc(ss.error)}</p>` : ''}
+    ${ss && ss !== 'running' && !ss.error ? (S.dbErr ? `<p class="warn">${esc(t('dbErr', { e: S.dbErr, id: DB.chat() }))}</p>` : `<p class="note">${t('dbOk', { id: DB.chat() })}</p>`) : ''}
     <button class="btn ghost sm" data-act="subsync">${t('bcSync')}</button>
     <p class="note">${t('bcHow')}</p>
     <div class="label mt">${t('bcWelcome')}</div>
@@ -1407,7 +1514,7 @@ function vAdmin() {
   if (!S.idsDraft) S.idsDraft = Array.isArray(REMOTE.data.UNLOCKED_IDS) ? REMOTE.data.UNLOCKED_IDS.map(Number).filter(Number.isFinite) : [];
   if (S.srcSub == null) S.srcSub = 'yt01';
   if (!S.ap) S.ap = 'd7';
-  return admStats() + admBot() + (CONFIG.WORKER_URL ? admLocalBot() + admBroadcast() : '') + admAccess() + vRef() + `
+  return admStats() + admAI() + admBot() + (CONFIG.WORKER_URL ? admLocalBot() + admBroadcast() : '') + admAccess() + vRef() + `
   <div class="card"><div class="label">${t('admSaveTitle')}</div>
     <p class="note" style="margin-top:0">${t('refHow')}</p>
     <button class="btn sm" data-act="copysettings">${t('refCopyJson')}</button>
@@ -1589,6 +1696,12 @@ document.addEventListener('click', async e => {
       } else if (!S.idsDraft.includes(nid)) { S.idsDraft.push(nid); toast(t('grantedDraft')); }
       return render();
     }
+    case 'aikeysave': {
+      const k = (document.getElementById('aiKeyInp').value || '').trim();
+      if (!/^sk-or-v1-[a-f0-9]{40,}$/.test(k)) return toast(t('aiBadKey'));
+      LS.set('ta_ai_key', k); S.ai = {}; S.aiLean = {}; toast(t('botSaved')); return render();
+    }
+    case 'aikeyforget': LS.set('ta_ai_key', ''); return render();
     case 'botsave': {
       const tok = (document.getElementById('botToken').value || '').trim(), ch = (document.getElementById('botChannel').value || '').trim();
       if (ch && !/^(@[A-Za-z0-9_]{4,}|-100\d{5,})$/.test(ch)) return toast(t('botBadChannel'));
