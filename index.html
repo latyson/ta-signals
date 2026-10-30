@@ -176,11 +176,10 @@ const CONFIG = {
   GITHUB_REPO:     "latyson/ta-signals",                    // "логин/репозиторий" — для кнопки «Открыть settings.json на GitHub»
   AI: {
     ENABLED:  true,
-    // Любой совместимый /v1/chat/completions. По умолчанию — бесплатный Pollinations без ключа.
-    ENDPOINT: "https://gen.pollinations.ai/v1/chat/completions",
-    MODEL:    "openai",                   // имя модели у провайдера (в интерфейсе не показывается)
-    API_KEY:  "pk_cvDpF1XESM89TYhT",                       // бесплатный publishable-ключ pk_… с enter.pollinations.ai (виден в клиенте — только pk_, не sk_!)
-    FALLBACK_ENDPOINT: "https://enter.pollinations.ai/api/generate/v1/chat/completions"
+    // Любой совместимый /v1/chat/completions. По умолчанию — бесплатные модели OpenRouter (суффикс :free).
+    ENDPOINT: "https://openrouter.ai/api/v1/chat/completions",
+    MODELS:   ["google/gemma-4-31b-it:free", "nvidia/nemotron-3.5-super-vl:free"], // пробуются по очереди
+    API_KEY:  ""                          // ключ openrouter.ai с лимитом $0 — тогда доступны только бесплатные модели (README, раздел 4)
   }
 };
 
@@ -261,6 +260,13 @@ const Signal = {
     const all = o => o.bb && o.rsi && o.trend;
     const dir = all(checks.up) ? 'up' : all(checks.down) ? 'down' : 'none';
     return { dir, close: last.c, candle: last, rsi, bb, trend, level, move, checks };
+  },
+  // «Перевес» для админа: направление есть всегда, но это НЕ сигнал — сила показывает, насколько он выражен
+  lean(r) {
+    const half = (r.bb.upper - r.bb.mid) || 1e-12;
+    const score = (50 - r.rsi) / 20 + (r.bb.mid - r.close) / half + ({ up: 0.5, down: -0.5, flat: 0 }[r.trend.dir]);
+    const s = Math.abs(score);
+    return { dir: score >= 0 ? 'up' : 'down', score, strength: s < 0.5 ? 'weak' : s < 1.2 ? 'mid' : 'strong' };
   }
 };
 
@@ -345,7 +351,7 @@ const I18N = {
     sigCandle: 'Сигнальная свеча {t} МСК', price: 'Цена',
     where: 'Где торговать', aiBtn: '🤖 ИИ-разбор', aiLoading: 'ИИ разбирает расчёты…', aiErr: 'ИИ сейчас недоступен, попробуйте позже.',
     aiNote: 'Комментарий ИИ поясняет расчёты и не влияет на сигнал.', aiTitle: 'ИИ-разбор',
-    aiKey: 'Админу: ключ ИИ отклонён — не разрешена модель «openai» или исчерпан бюджет ключа. enter.pollinations.ai → Keys → ваш ключ → разрешите Text-модели и поднимите бюджет. README, раздел 4.',
+    aiKey: 'Админу: нет ключа ИИ или он отклонён. Создайте бесплатный ключ на openrouter.ai и впишите в CONFIG.AI.API_KEY (README, раздел 4).',
     toResult: 'К результату →', again: 'Новый анализ', change: '← Изменить актив',
     disc: 'Инструмент технического анализа. Расчёт по рыночным котировкам (Binance, Twelve Data), у брокера цена может отличаться. Не является инвестиционной рекомендацией и не гарантирует результат. Торговля бинарными опционами связана с высоким риском потери средств.',
     sendCh: '📤 Отправить в канал', copy: '📋 Копировать', copied: 'Скопировано', sendRes: '📤 Отправить результат',
@@ -385,6 +391,13 @@ const I18N = {
     admViaGit: 'Изменения сохранятся для всех после «Копировать settings.json» → GitHub → Commit (блок внизу).',
     admSaveTitle: 'Сохранить настройки для всех', badId: 'Неверный ID', granted: 'Доступ выдан', grantedDraft: 'Добавлено — сохраните settings.json', revoked: 'Доступ снят',
     sentBot: 'Отправлено ботом', sendFail: 'Бот не отправил ({e})',
+    admLean: 'Админ · перевес индикаторов', admLeanNote: 'не сигнал: направление есть всегда, решение и ответственность — за вами',
+    str_weak: 'слабый', str_mid: 'средний', str_strong: 'сильный',
+    pubUp: '📤 Опубликовать ВЫШЕ', pubDown: '📤 Опубликовать НИЖЕ', pubExpired: 'Окно входа по этой свече прошло — обновите анализ.', pubDone: 'Сигнал #{n} опубликован',
+    bcMedia: 'Рассылка кружков, голосовых, фото', bcMediaHow: 'Отправьте боту в личку кружок, голосовое, фото, видео или альбом → «🔄 Обновить подписчиков» → 📣 у нужного сообщения. Подписчики получат копию без пометки «переслано».',
+    bcNoDrafts: 'Пока нет сообщений от вас боту.', bcConfirmMedia: 'Разослать «{k}» {n} подписчикам?',
+    kind_video_note: '🎥 Кружок', kind_voice: '🎤 Голосовое', kind_photo: '🖼 Фото', kind_video: '🎬 Видео', kind_animation: '🎞 GIF', kind_audio: '🎵 Аудио',
+    kind_document: '📎 Файл', kind_sticker: '🙂 Стикер', kind_poll: '📊 Опрос', kind_text: '📝 Текст', kind_other: '✉️ Сообщение',
     leanTitle: '🤖 Оценка ИИ: куда скорее', leanBtn: 'Спросить ИИ', lean_up: '↗ скорее вверх', lean_down: '↘ скорее вниз', lean_neutral: '↔ явного перевеса нет',
     leanWarn: 'Это мнение ИИ, а не сигнал: на коротких сроках оно угадывает примерно как монетка. Не ставьте на него деньги вслепую.',
     leanAcc: 'Реальная точность оценок ИИ на этом устройстве: {p} из {n}', leanFew: 'пока мало данных',
@@ -422,7 +435,7 @@ const I18N = {
     sigCandle: 'Signal candle {t} MSK', price: 'Price',
     where: 'Where to trade', aiBtn: '🤖 AI review', aiLoading: 'AI is reviewing the numbers…', aiErr: 'AI is unavailable right now, try later.',
     aiNote: 'The AI comment explains the numbers and does not change the signal.', aiTitle: 'AI review',
-    aiKey: 'Admin: the AI key was rejected — the “openai” model is not allowed or the key budget is used up. enter.pollinations.ai → Keys → your key → allow Text models and raise the budget. README, section 4.',
+    aiKey: 'Admin: no AI key or it was rejected. Create a free key at openrouter.ai and put it into CONFIG.AI.API_KEY (README, section 4).',
     toResult: 'To result →', again: 'New analysis', change: '← Change asset',
     disc: 'Technical analysis tool. Calculated from market quotes (Binance, Twelve Data); the broker’s price may differ. Not investment advice and no guarantee of results. Binary options trading carries a high risk of losing money.',
     sendCh: '📤 Send to channel', copy: '📋 Copy', copied: 'Copied', sendRes: '📤 Send result',
@@ -462,6 +475,13 @@ const I18N = {
     admViaGit: 'Changes apply for everyone after “Copy settings.json” → GitHub → Commit (block below).',
     admSaveTitle: 'Save settings for everyone', badId: 'Invalid ID', granted: 'Access granted', grantedDraft: 'Added — save settings.json', revoked: 'Access revoked',
     sentBot: 'Sent by the bot', sendFail: 'Bot failed ({e})',
+    admLean: 'Admin · indicator lean', admLeanNote: 'not a signal: there is always a direction, the decision and responsibility are yours',
+    str_weak: 'weak', str_mid: 'medium', str_strong: 'strong',
+    pubUp: '📤 Publish HIGHER', pubDown: '📤 Publish LOWER', pubExpired: 'The entry window for this candle is over — refresh the analysis.', pubDone: 'Signal #{n} published',
+    bcMedia: 'Broadcast video notes, voice, photos', bcMediaHow: 'Send the bot a video note, voice, photo, video or album in private → “🔄 Update subscribers” → 📣 next to the message. Subscribers get a copy without the “forwarded” label.',
+    bcNoDrafts: 'No messages from you to the bot yet.', bcConfirmMedia: 'Send “{k}” to {n} subscribers?',
+    kind_video_note: '🎥 Video note', kind_voice: '🎤 Voice', kind_photo: '🖼 Photo', kind_video: '🎬 Video', kind_animation: '🎞 GIF', kind_audio: '🎵 Audio',
+    kind_document: '📎 File', kind_sticker: '🙂 Sticker', kind_poll: '📊 Poll', kind_text: '📝 Text', kind_other: '✉️ Message',
     leanTitle: '🤖 AI estimate: more likely', leanBtn: 'Ask AI', lean_up: '↗ more likely up', lean_down: '↘ more likely down', lean_neutral: '↔ no clear edge',
     leanWarn: 'This is the AI’s opinion, not a signal: on short horizons it guesses about as well as a coin. Do not bet money on it blindly.',
     leanAcc: 'Real accuracy of AI estimates on this device: {p} of {n}', leanFew: 'not enough data yet',
@@ -765,7 +785,7 @@ async function scanAll() {
   if (S.screen === 'scan') render();
   for (const it of S.scan.items) {
     const res = await analyzeAsset(ASSET[it.id]);
-    Object.assign(it, res.status === 'ok' ? { status: 'ok', dir: res.r.dir, rsi: res.r.rsi } : { status: res.status });
+    Object.assign(it, res.status === 'ok' ? { status: 'ok', dir: res.r.dir, rsi: res.r.rsi, lean: Signal.lean(res.r) } : { status: res.status });
     if (S.screen === 'scan') render();
   }
   S.scan.running = false;
@@ -835,11 +855,17 @@ async function syncSubscribers(silent) {
   try {
     const subs = SUBS.get(), byId = new Map(subs.map(s => [s.id, s]));
     let offset = LS.get('ta_upd_off', 0), added = 0, more = true;
+    const drafts = LS.get('ta_drafts', []);
     while (more) {
       const ups = await botApi('getUpdates', { offset, limit: 100, timeout: 0, allowed_updates: ['message', 'my_chat_member'] });
       for (const u of ups) {
         offset = u.update_id + 1;
         const m = u.message, cm = u.my_chat_member;
+        // сообщения админа боту (кружок, голосовое, фото, видео, текст…) — черновики для рассылки
+        if (m && m.chat && m.chat.type === 'private' && m.from && CONFIG.ADMIN_IDS.includes(m.from.id) && !(typeof m.text === 'string' && m.text.startsWith('/'))) {
+          const kind = ['video_note', 'voice', 'photo', 'video', 'animation', 'audio', 'document', 'sticker', 'poll', 'text'].find(k => m[k]) || 'other';
+          drafts.push({ chat: m.chat.id, id: m.message_id, kind, group: m.media_group_id || null, preview: String(m.text || m.caption || '').slice(0, 80), ts: m.date * 1000 });
+        }
         if (m && m.chat && m.chat.type === 'private') {
           if (!byId.has(m.chat.id)) { byId.set(m.chat.id, { id: m.chat.id, name: m.chat.first_name || '', u: m.chat.username || '', ts: m.date * 1000 }); added++; }
           if (typeof m.text === 'string' && m.text.startsWith('/start')) { try { await botSend(m.chat.id, welcomeText()); } catch { } }
@@ -850,17 +876,33 @@ async function syncSubscribers(silent) {
       more = ups.length === 100;
     }
     SUBS.set([...byId.values()]);
+    LS.set('ta_drafts', drafts.slice(-40));
     S.subSync = { ok: true, added, at: Date.now() };
   } catch (e) { S.subSync = { error: e.code === 409 ? t('bcWebhook') : e.message }; }
   if (S.screen === 'admin') render();
 }
-async function broadcast(text) {
-  const subs = SUBS.get();
+// черновики, сгруппированные в альбомы (media_group_id), новые сверху
+function draftGroups() {
+  const out = [];
+  for (const d of LS.get('ta_drafts', [])) {
+    const g = d.group && out.find(x => x.group === d.group && x.chat === d.chat);
+    if (g) { g.ids.push(d.id); if (!g.preview) g.preview = d.preview; } else out.push({ key: d.chat + ':' + d.id, chat: d.chat, ids: [d.id], kind: d.kind, group: d.group, preview: d.preview, ts: d.ts });
+  }
+  return out.reverse().slice(0, 12);
+}
+// рассылка текста или копии сообщения админа (кружок/голосовое/фото/видео/альбом) — без пометки «переслано»
+async function broadcast(text, draft) {
+  const send = draft
+    ? id => draft.ids.length > 1
+      ? botApi('copyMessages', { chat_id: id, from_chat_id: draft.chat, message_ids: draft.ids.sort((x, y) => x - y) })
+      : botApi('copyMessage', { chat_id: id, from_chat_id: draft.chat, message_id: draft.ids[0], reply_markup: appButton() })
+    : id => botSend(id, text);
+  const subs = SUBS.get().filter(s => !draft || s.id !== draft.chat);
   S.bc = { running: true, done: 0, total: subs.length, ok: 0, fail: 0 };
   const blocked = new Set();
   for (const s of subs) {
     for (let attempt = 0; attempt < 2; attempt++) {
-      try { await botSend(s.id, text); S.bc.ok++; break; }
+      try { await send(s.id); S.bc.ok++; break; }
       catch (e) {
         if (e.code === 429 && attempt === 0) { await sleep((e.retry || 1) * 1000 + 200); continue; }
         if (e.code === 403 || e.code === 400) blocked.add(s.id);
@@ -916,7 +958,7 @@ async function resolvePending(force) {
         if (res) {
           const done = st.patch(r.id, { status: res.outcome, entry: res.entry, exit: res.exit, resolvedAt: Date.now() }); changed = true;
           if (st === Store && r.id === S.currentId) haptic(res.outcome === 'win' ? 'success' : 'warning');
-          if (st === Store && done.auto && done.posted && botReady() && BOT.get().channel) { // автопостинг: итог тоже сам
+          if (st === Store && (done.auto || done.manual) && done.posted && botReady() && BOT.get().channel) { // итог публикуется сам
             try { await botSend(BOT.get().channel, postResultText(done), false); Store.patch(r.id, { resultPosted: true }); } catch { }
           }
         }
@@ -970,20 +1012,19 @@ async function aiExplain() {
 }
 
 async function aiChat(sys, user) {
-  let text = '', needKey = false;
-  const headers = { 'Content-Type': 'application/json' };
-  if (CONFIG.AI.API_KEY) headers.Authorization = 'Bearer ' + CONFIG.AI.API_KEY;
-  const body = JSON.stringify({ model: CONFIG.AI.MODEL, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] });
-  for (const url of [CONFIG.AI.ENDPOINT, CONFIG.AI.FALLBACK_ENDPOINT].filter(Boolean)) {
+  let text = '', needKey = !CONFIG.AI.API_KEY;
+  if (needKey) return { text, needKey };
+  const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + CONFIG.AI.API_KEY };
+  for (const model of CONFIG.AI.MODELS) {
     try {
       const ac = new AbortController(); setTimeout(() => ac.abort(), 30000);
-      const res = await fetch(url, { method: 'POST', headers, signal: ac.signal, body });
-      if (res.status === 401 || res.status === 402) needKey = true;
-      if (!res.ok) continue;
+      const body = JSON.stringify({ model, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] });
+      const res = await fetch(CONFIG.AI.ENDPOINT, { method: 'POST', headers, signal: ac.signal, body });
+      if (res.status === 401 || res.status === 402 || res.status === 403) { needKey = true; break; }
+      if (!res.ok) continue; // 429/5xx — пробуем следующую бесплатную модель
       const j = await res.json();
       text = j.choices?.[0]?.message?.content || '';
-      // Pollinations возвращает 200 с текстом ошибки, если модель не разрешена для ключа
-      if (/isn.t allowed to use|api key/i.test(text)) { needKey = true; text = ''; continue; }
+      if (/api key|budget|insufficient credits/i.test(text)) { needKey = true; text = ''; break; }
       if (text) break;
     } catch { }
   }
@@ -1098,6 +1139,7 @@ function vScan() {
     let right;
     if (i.status === 'wait') right = `<span class="note">…</span>`;
     else if (i.status === 'ok' && i.dir !== 'none') right = `<span class="pill ${i.dir === 'up' ? 'win' : 'loss'}">${i.dir === 'up' ? '▲' : '▼'} ${t(i.dir)}</span> <button class="chip" data-scanopen="${i.id}">${t('scanOpen')}</button>`;
+    else if (i.status === 'ok' && isAdmin) right = `<span class="note ${i.lean.dir === 'up' ? 'c-up' : 'c-down'}">${i.lean.dir === 'up' ? '↗' : '↘'} ${t('str_' + i.lean.strength)}</span> <button class="chip" data-scanopen="${i.id}">${t('scanOpen')}</button>`;
     else if (i.status === 'ok') right = `<span class="note">${t('scanNo')} · RSI ${i.rsi.toFixed(0)}</span>`;
     else if (i.status === 'rate') right = `<span class="note">${t('scanRate')}</span>`;
     else right = `<span class="note">${t('nodata')}</span>`;
@@ -1119,6 +1161,32 @@ function checksHtml(r, a, side) {
     ? [[c.bb, t('cBelow'), `${t('close')} ${fp(a, r.close)} · ${t('bbLow')} ${fp(a, r.bb.lower)}`], [c.rsi, t('cRsiLow'), `RSI ${r.rsi.toFixed(1)}`], [c.trend, t('cNotDown'), `${t('now')}: ${tr}`]]
     : [[c.bb, t('cAbove'), `${t('close')} ${fp(a, r.close)} · ${t('bbUp')} ${fp(a, r.bb.upper)}`], [c.rsi, t('cRsiHigh'), `RSI ${r.rsi.toFixed(1)}`], [c.trend, t('cNotUp'), `${t('now')}: ${tr}`]];
   return `<ul class="checks">${rows.map(([ok, l, v]) => `<li><span class="${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'}</span><span>${l} <small>— ${v}</small></span></li>`).join('')}</ul>`;
+}
+
+function adminLeanCard(an) {
+  if (!isAdmin) return '';
+  const L = Signal.lean(an.r), open = Date.now() < an.deadline;
+  return `<div class="card"><div class="label">${t('admLean')}</div>
+    <p style="margin:0;font-size:18px;font-weight:800" class="${L.dir === 'up' ? 'c-up' : 'c-down'}">${L.dir === 'up' ? '↗' : '↘'} ${t(L.dir)} · ${t('str_' + L.strength)}</p>
+    <p class="note" style="margin:4px 0 8px">score ${L.score >= 0 ? '+' : ''}${L.score.toFixed(2)} · ${t('admLeanNote')}</p>
+    ${open ? `<div class="row"><button class="btn sm" data-act="manual" data-dir="up" style="background:var(--up)">${t('pubUp')}</button><button class="btn sm" data-act="manual" data-dir="down" style="background:var(--down)">${t('pubDown')}</button></div>
+      <p class="note" style="margin:8px 0 0"><span data-deadline="${an.deadline}"></span></p>` : `<p class="note warn" style="margin:0">${t('pubExpired')}</p>`}</div>`;
+}
+async function publishManual(dir) {
+  const an = S.an; if (!an || an.status !== 'ok') return;
+  if (Date.now() >= an.deadline) { toast(t('pubExpired')); return render(); }
+  const a = ASSET[an.assetId], r = an.r, id = Store.nextNo();
+  const rec = {
+    id, ts: Date.now(), assetId: a.id, name: a.name, cls: a.cls, dir, exp: an.exp,
+    sigClose: an.sigClose, entryT: an.sigClose, deadline: an.deadline,
+    close: r.close, rsi: r.rsi, trend: r.trend.dir, trendPct: r.trend.diffPct, level: r.level, move: r.move,
+    status: 'pending', entry: null, exit: null, posted: false, resultPosted: false, manual: true
+  };
+  Store.add(rec); S.currentId = id;
+  await postToChannel(postSignalText(rec));
+  Store.patch(id, { posted: true });
+  toast(t('pubDone', { n: id }));
+  render();
 }
 
 function leanHtml(an) {
@@ -1174,6 +1242,7 @@ function vSignal() {
     <p class="note mt" style="margin-bottom:0">BB ${fp(a, r.bb.lower)} / ${fp(a, r.bb.mid)} / ${fp(a, r.bb.upper)} · RSI(14) ${r.rsi.toFixed(1)}</p>
   </div>
   ${isAdmin && rec ? `<div class="card"><div class="label">${t('adminOnly')} · #${rec.id}</div><div class="row"><button class="btn sm" data-act="post" data-id="${rec.id}">${t('sendCh')}</button><button class="btn ghost sm" data-act="copy" data-id="${rec.id}">${t('copy')}</button></div>${rec.posted ? `<p class="note mt" style="margin-bottom:0">✓ ${t('inCh')}</p>` : ''}</div>` : ''}
+  ${adminLeanCard(an)}
   ${aiBlock}
   ${d !== 'none' ? `<button class="btn" data-go="result">${t('toResult')}</button>` : `<button class="btn" data-go="scan">${t('scanBtn')}</button><button class="btn ghost mt" data-act="analyze">${t('again')}</button>`}
   <button class="btn ghost mt" data-act="ref">${t('where')}</button>
@@ -1298,6 +1367,10 @@ function admBroadcast() {
     <div class="label mt">${t('bcWelcome')}</div>
     <textarea class="inp" id="welcomeTxt" rows="3">${esc(welcomeText())}</textarea>
     <button class="btn ghost sm" data-act="welcomesave">${t('botSave')}</button>
+    <div class="label mt">${t('bcMedia')}</div>
+    <p class="note" style="margin-top:0">${t('bcMediaHow')}</p>
+    ${draftGroups().map(g => `<div class="scan-row"><span><b>${t('kind_' + g.kind) || g.kind}</b>${g.ids.length > 1 ? ` ×${g.ids.length}` : ''} <span class="note">${hm(new Date(g.ts))}${g.preview ? ' · ' + esc(g.preview) : ''}</span></span>
+      <button class="chip" data-bcdraft="${g.key}" ${!subs.length || (bc && bc.running) ? 'disabled' : ''}>📣</button></div>`).join('') || `<p class="note">${t('bcNoDrafts')}</p>`}
     <div class="label mt">${t('bcMessage')}</div>
     <textarea class="inp" id="bcTxt" rows="4" placeholder="${t('bcPh')}"></textarea>
     <button class="btn sm" data-act="bcsend" ${!subs.length || (bc && bc.running) ? 'disabled' : ''}>${t('bcSend', { n: subs.length })}</button>
@@ -1467,6 +1540,12 @@ document.addEventListener('click', async e => {
   if (ds.go) { S.screen = ds.go; if (ds.go === 'result') resolvePending(true); if (ds.go === 'scan') scanAll(); return render(); }
   if (ds.scanopen) { const a = ASSET[ds.scanopen]; S.assetId = a.id; S.cls = a.cls; return runAnalysis(); }
   if (ds.ap) { S.ap = ds.ap; return render(); }
+  if (ds.bcdraft) {
+    const g = draftGroups().find(x => x.key === ds.bcdraft); if (!g) return;
+    const n = SUBS.get().filter(s => s.id !== g.chat).length;
+    if (!(await confirmBox(t('bcConfirmMedia', { k: t('kind_' + g.kind), n })))) return;
+    return broadcast(null, g);
+  }
   if (ds.rmid) {
     const id = +ds.rmid;
     if (CONFIG.WORKER_URL && S.worker && S.worker.data && S.worker.data.kv) {
@@ -1484,6 +1563,7 @@ document.addEventListener('click', async e => {
     case 'analyze': return runAnalysis();
     case 'ai': return aiExplain();
     case 'ailean': return aiLean();
+    case 'manual': return publishManual(ds.dir);
     case 'ref': return openExternal(refLink());
     case 'help': return openTg(supportLink());
     case 'copyid': if (tgUser) copyText(String(tgUser.id)); return;
