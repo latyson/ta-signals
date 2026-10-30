@@ -105,6 +105,27 @@ table.t td{padding:6px 4px;border-bottom:1px solid var(--border)}
 .inp{width:100%;padding:11px 12px;border-radius:12px;background:rgba(0,0,0,.3);border:1px solid var(--border);color:var(--text);font:inherit;font-size:14px;margin-bottom:8px;outline:none}
 .inp:focus{border-color:var(--accent)}
 .mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12.5px;word-break:break-all;background:rgba(0,0,0,.25);padding:8px 10px;border-radius:10px;margin:4px 0 8px}
+.pair{display:inline-flex;align-items:center;flex:none}
+.pair i{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:12px;border:2px solid var(--bg);color:#fff}
+.pair i.p0{background:linear-gradient(140deg,#1f9d6b,#0f6e4a)}
+.pair i.p1{background:linear-gradient(140deg,#3657a8,#22346b);margin-left:-9px}
+.pair.lg i{width:40px;height:40px;font-size:15px}
+.arow{display:flex;align-items:center;gap:10px;min-width:0}
+.asset-head{display:flex;align-items:center;gap:12px}
+.asset-head b{font-size:18px}
+.dir-row{display:flex;align-items:center;gap:16px;text-align:left}
+.orb{width:74px;height:74px;border-radius:50%;flex:none;display:grid;place-items:center;color:#fff}
+.dir.up .orb{background:radial-gradient(circle at 35% 30%,#3fe0a1,#0e8a5c);box-shadow:0 0 30px rgba(22,199,132,.45)}
+.dir.down .orb{background:radial-gradient(circle at 35% 30%,#ff6b6b,#b4232c);box-shadow:0 0 30px rgba(239,68,68,.45)}
+.dir.none .orb{background:var(--card2);color:var(--none)}
+.dir-row .timer{margin-top:6px}
+.dir .instr{margin-top:14px;padding-top:12px;border-top:1px solid var(--border);font-size:14px;text-align:left}
+.metric .k svg{vertical-align:-3px;margin-right:4px;opacity:.8}
+.scan-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)}
+.scan-row:last-child{border-bottom:0}
+.id-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+.id-row:last-child{border-bottom:0}
+table.t th{text-align:left;color:var(--muted);font-weight:600;font-size:12px;padding:4px}
 @media (max-width:360px){.metrics{grid-template-columns:1fr 1fr}.dir .big{font-size:34px}}
 </style>
 </head>
@@ -151,6 +172,7 @@ const CONFIG = {
   // settings.json рядом с index.html переопределяет REF_URL, SUBID_PARAM, SUPPORT_USERNAME
   // и дополняет UNLOCKED_IDS — меняется на GitHub без правки кода (экран «Реф-ссылка» в админке).
   SETTINGS_URL:    "settings.json",
+  WORKER_URL:      "",                    // https://….workers.dev — отправка ботом, автопостинг, мгновенная выдача доступа (README, раздел 7)
   GITHUB_REPO:     "latyson/ta-signals",                    // "логин/репозиторий" — для кнопки «Открыть settings.json на GitHub»
   AI: {
     ENABLED:  true,
@@ -347,7 +369,22 @@ const I18N = {
     refTest: '🔎 Проверить ссылку', refCopyJson: '📋 Копировать settings.json', refGh: '✏️ Открыть settings.json на GitHub',
     refHow: 'Как сменить у всех: скопируйте settings.json → откройте файл на GitHub → замените текст → Commit changes. Через 1–10 минут новая ссылка заработает у всех пользователей.',
     refNoRemote: 'settings.json не найден — сейчас действует ссылка из CONFIG в index.html.', refNoRepo: 'Впишите GITHUB_REPO в CONFIG, чтобы здесь появилась кнопка открытия файла на GitHub.',
-    srcTitle: 'Ссылки под источники трафика', srcSubPh: 'sub-ID, например yt01', srcApp: 'Ссылка на приложение (для поста/ролика)', srcRef: 'Куда попадёт пользователь по «Где торговать»'
+    srcTitle: 'Ссылки под источники трафика', srcSubPh: 'sub-ID, например yt01', srcApp: 'Ссылка на приложение (для поста/ролика)', srcRef: 'Куда попадёт пользователь по «Где торговать»',
+    scanBtn: '🔎 Найти сигнал по всем активам', scanTitle: 'Поиск сигнала', scanRunning: 'Проверяем открытые активы…', scanOpen: 'Открыть',
+    scanNo: 'нет', scanRate: 'лимит данных, позже', scanEmpty: 'Сейчас нет открытых активов.',
+    scanNone: 'Сигнала сейчас нет ни на одном активе — условия срабатывают несколько раз в час, это нормально.', scanNext: 'Следующая свеча закроется в {t} МСК.',
+    scanAuto: 'Искать автоматически каждую минуту', scanAgain: 'Проверить снова',
+    admTitle: 'Админка', admStats: 'Статистика', admStatsCap: 'По сигналам, сохранённым на этом устройстве.', admTotal: 'Сигналов', admPosted: 'В канале',
+    admBot: 'Бот и канал', admNoWorker: 'Отправка ботом, автопостинг и мгновенная выдача доступа пока не подключены: нужен Cloudflare Worker (README, раздел 7). Сейчас посты уходят через окно «Поделиться».',
+    admWorkerErr: 'Worker не отвечает: {e}', admNoKv: 'В Worker не подключено хранилище KV (переменная STATE) — автопостинг и выдача доступа не работают.',
+    admAuto: 'Автопостинг', on: 'включён', off: 'выключен', admAutoOn: 'Включить автопостинг', admAutoOff: 'Выключить автопостинг', admChannel: 'Канал',
+    admToday: 'Сегодня: сигналов {n}, плюс {w}, минус {l}, возврат {f}', admPending: 'ждут результата: {n}',
+    admTest: 'Тестовый пост', admDayBot: '📤 Итог дня автопостинга в канал', testPost: 'Тестовое сообщение: бот подключён ✅',
+    admAccess: 'Ручная выдача доступа', admAccessCap: 'Telegram ID, которым открыты закрытые функции.', admNone: 'Пока никому не выдано.', admInCode: 'в коде',
+    admIdPh: 'Telegram ID', admAdd: 'Выдать', admViaWorker: 'Выдача и снятие срабатывают сразу (через Worker).',
+    admViaGit: 'Изменения сохранятся для всех после «Копировать settings.json» → GitHub → Commit (блок внизу).',
+    admSaveTitle: 'Сохранить настройки для всех', badId: 'Неверный ID', granted: 'Доступ выдан', grantedDraft: 'Добавлено — сохраните settings.json', revoked: 'Доступ снят',
+    sentBot: 'Отправлено ботом в канал', sendFail: 'Бот не отправил ({e}) — открываю «Поделиться»'
   },
   en: {
     tagline: 'Technical analysis · signals', s1: 'Signal', s2: 'Result', s3: 'History',
@@ -394,7 +431,22 @@ const I18N = {
     refTest: '🔎 Test link', refCopyJson: '📋 Copy settings.json', refGh: '✏️ Open settings.json on GitHub',
     refHow: 'To change it for everyone: copy settings.json → open the file on GitHub → replace the text → Commit changes. In 1–10 minutes the new link works for all users.',
     refNoRemote: 'settings.json not found — the link from CONFIG in index.html is used.', refNoRepo: 'Set GITHUB_REPO in CONFIG to get a button that opens the file on GitHub.',
-    srcTitle: 'Links for traffic sources', srcSubPh: 'sub-ID, e.g. yt01', srcApp: 'App link (for a post/video)', srcRef: 'Where “Where to trade” leads'
+    srcTitle: 'Links for traffic sources', srcSubPh: 'sub-ID, e.g. yt01', srcApp: 'App link (for a post/video)', srcRef: 'Where “Where to trade” leads',
+    scanBtn: '🔎 Find a signal across all assets', scanTitle: 'Signal search', scanRunning: 'Checking open assets…', scanOpen: 'Open',
+    scanNo: 'none', scanRate: 'data limit, later', scanEmpty: 'No open assets right now.',
+    scanNone: 'No signal on any asset right now — conditions trigger a few times per hour, that is normal.', scanNext: 'Next candle closes at {t} MSK.',
+    scanAuto: 'Search automatically every minute', scanAgain: 'Check again',
+    admTitle: 'Admin', admStats: 'Statistics', admStatsCap: 'Based on signals saved on this device.', admTotal: 'Signals', admPosted: 'In channel',
+    admBot: 'Bot & channel', admNoWorker: 'Bot posting, auto-posting and instant access are not connected yet: a Cloudflare Worker is needed (README, section 7). Posts currently go through the Share window.',
+    admWorkerErr: 'Worker not responding: {e}', admNoKv: 'KV storage (STATE binding) is not connected to the Worker — auto-posting and access do not work.',
+    admAuto: 'Auto-posting', on: 'on', off: 'off', admAutoOn: 'Turn auto-posting on', admAutoOff: 'Turn auto-posting off', admChannel: 'Channel',
+    admToday: 'Today: signals {n}, wins {w}, losses {l}, refunds {f}', admPending: 'awaiting result: {n}',
+    admTest: 'Test post', admDayBot: '📤 Auto-posting day summary to channel', testPost: 'Test message: bot connected ✅',
+    admAccess: 'Manual access', admAccessCap: 'Telegram IDs with locked features opened.', admNone: 'Nobody yet.', admInCode: 'in code',
+    admIdPh: 'Telegram ID', admAdd: 'Grant', admViaWorker: 'Grant and revoke apply instantly (via Worker).',
+    admViaGit: 'Changes apply for everyone after “Copy settings.json” → GitHub → Commit (block below).',
+    admSaveTitle: 'Save settings for everyone', badId: 'Invalid ID', granted: 'Access granted', grantedDraft: 'Added — save settings.json', revoked: 'Access revoked',
+    sentBot: 'Sent to channel by the bot', sendFail: 'Bot failed ({e}) — opening Share'
   }
 };
 const HOW = {
@@ -442,13 +494,13 @@ const HOW = {
 
 /* ═════════════════════════ АКТИВЫ ═════════════════════════ */
 const ASSETS = [
-  { id: 'EURUSD', name: 'EUR/USD', cls: 'forex', src: 'binance', sym: 'EURUSDT', pip: 0.0001, dec: 5 },
-  { id: 'GBPUSD', name: 'GBP/USD', cls: 'forex', src: 'td', sym: 'GBP/USD', pip: 0.0001, dec: 5 },
-  { id: 'USDJPY', name: 'USD/JPY', cls: 'forex', src: 'td', sym: 'USD/JPY', pip: 0.01, dec: 3 },
-  { id: 'AUDUSD', name: 'AUD/USD', cls: 'forex', src: 'td', sym: 'AUD/USD', pip: 0.0001, dec: 5 },
-  { id: 'BTCUSD', name: 'BTC/USD', cls: 'crypto', src: 'binance', sym: 'BTCUSDT', dec: 2 },
-  { id: 'ETHUSD', name: 'ETH/USD', cls: 'crypto', src: 'binance', sym: 'ETHUSDT', dec: 2 },
-  ...['AAPL', 'TSLA', 'AMZN', 'MSFT', 'NVDA', 'META', 'GOOGL'].map(s => ({ id: s, name: s, cls: 'stocks', src: 'td', sym: s, dec: 2 }))
+  { id: 'EURUSD', name: 'EUR/USD', cls: 'forex', src: 'binance', sym: 'EURUSDT', pip: 0.0001, dec: 5, ic: ['€', '$'] },
+  { id: 'GBPUSD', name: 'GBP/USD', cls: 'forex', src: 'td', sym: 'GBP/USD', pip: 0.0001, dec: 5, ic: ['£', '$'] },
+  { id: 'USDJPY', name: 'USD/JPY', cls: 'forex', src: 'td', sym: 'USD/JPY', pip: 0.01, dec: 3, ic: ['$', '¥'] },
+  { id: 'AUDUSD', name: 'AUD/USD', cls: 'forex', src: 'td', sym: 'AUD/USD', pip: 0.0001, dec: 5, ic: ['A$', '$'] },
+  { id: 'BTCUSD', name: 'BTC/USD', cls: 'crypto', src: 'binance', sym: 'BTCUSDT', dec: 2, ic: ['₿', '$'] },
+  { id: 'ETHUSD', name: 'ETH/USD', cls: 'crypto', src: 'binance', sym: 'ETHUSDT', dec: 2, ic: ['Ξ', '$'] },
+  ...['AAPL', 'TSLA', 'AMZN', 'MSFT', 'NVDA', 'META', 'GOOGL'].map(s => ({ id: s, name: s, cls: 'stocks', src: 'td', sym: s, dec: 2, ic: [s[0]] }))
 ];
 const ASSET = Object.fromEntries(ASSETS.map(a => [a.id, a]));
 
@@ -561,7 +613,7 @@ const isRealAdmin = !!(tgUser && CONFIG.ADMIN_IDS.includes(tgUser.id));
 const isAdmin = isRealAdmin || new URLSearchParams(location.search).has('admin_preview'); // admin_preview — только показ кнопок
 const subId = (() => { const p = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param; return p && /^[A-Za-z0-9_-]{1,64}$/.test(p) ? p : 'direct'; })();
 /* ── ручная разблокировка (скрытие функций, не защита: список виден в коде) ── */
-const isUnlocked = () => isRealAdmin || !!(tgUser && cfg('UNLOCKED_IDS').includes(tgUser.id));
+const isUnlocked = () => isRealAdmin || S.workerUnlocked || !!(tgUser && cfg('UNLOCKED_IDS').includes(tgUser.id));
 
 /* ── settings.json: реф-ссылка, поддержка, список доступа без правки кода ── */
 const REMOTE = { loaded: false, data: {} };
@@ -632,18 +684,28 @@ function buildRef(url, param, sub) { return url + (url.includes('?') ? '&' : '?'
 function refLink() { return buildRef(cfg('REF_URL'), cfg('SUBID_PARAM'), subId); }
 
 /* ═════════════════════════ АНАЛИЗ ═════════════════════════ */
-async function runAnalysis() {
-  const a = ASSET[S.assetId], exp = S.exp;
-  if (assetLocked(a) || isLocked('exp' + exp)) { S.screen = 'select'; return render(); }
-  S.screen = 'signal'; S.an = { status: 'loading', assetId: a.id, exp }; render();
-  if (!isOpen(a.cls)) { S.an = { status: 'closed', assetId: a.id, exp, opens: nextOpen(a.cls) }; return render(); }
+// расчёт по одному активу без записи в историю (используется анализом и поиском)
+async function analyzeAsset(a) {
+  if (!isOpen(a.cls)) return { status: 'closed', opens: nextOpen(a.cls) };
   try {
     const [c1, c15] = await Promise.all([getCandles(a, '1m'), getCandles(a, '15m')]);
     const last = c1.at(-1), maxLag = a.src === 'td' ? 240000 : 150000;
     if (!last || last.t + 60000 < Date.now() - maxLag) throw new Error('stale');
     const r = Signal.compute(c1, c15);
     if (r.error) throw new Error(r.error);
-    const sigClose = r.candle.t + 60000;
+    return { status: 'ok', r, sigClose: r.candle.t + 60000 };
+  } catch (e) { return { status: e.message === 'rate' ? 'rate' : 'nodata' }; }
+}
+
+async function runAnalysis() {
+  const a = ASSET[S.assetId], exp = S.exp;
+  if (assetLocked(a) || isLocked('exp' + exp)) { S.screen = 'select'; return render(); }
+  S.screen = 'signal'; S.an = { status: 'loading', assetId: a.id, exp }; render();
+  const res = await analyzeAsset(a);
+  if (res.status === 'closed') { S.an = { status: 'closed', assetId: a.id, exp, opens: res.opens }; return render(); }
+  if (res.status !== 'ok') { S.an = { status: 'nodata', assetId: a.id, exp }; return render(); }
+  {
+    const { r, sigClose } = res;
     const an = { status: 'ok', assetId: a.id, exp, r, sigClose, deadline: sigClose + 60000, key: a.id + sigClose + exp };
     if (r.dir !== 'none') {
       const id = Store.nextNo();
@@ -656,10 +718,54 @@ async function runAnalysis() {
       an.id = id; S.currentId = id; haptic('success');
     }
     S.an = an;
-  } catch (e) {
-    S.an = { status: 'nodata', assetId: a.id, exp };
   }
   render();
+}
+
+/* ── поиск сигнала по всем открытым активам (сначала Binance — у Twelve Data лимит) ── */
+function scanCandidates() {
+  return ASSETS.filter(a => isOpen(a.cls) && !assetLocked(a) && (a.src === 'binance' || (tdKeyOk() && (a.cls !== 'stocks' || S.stockRT === 'ok'))))
+    .sort((x, y) => (x.src === 'binance' ? 0 : 1) - (y.src === 'binance' ? 0 : 1));
+}
+async function scanAll() {
+  if (S.scan && S.scan.running) return;
+  S.scan = { running: true, auto: !!(S.scan && S.scan.auto), lastMin: S.scan && S.scan.lastMin, items: scanCandidates().map(a => ({ id: a.id, status: 'wait' })) };
+  if (S.screen === 'scan') render();
+  for (const it of S.scan.items) {
+    const res = await analyzeAsset(ASSET[it.id]);
+    Object.assign(it, res.status === 'ok' ? { status: 'ok', dir: res.r.dir, rsi: res.r.rsi } : { status: res.status });
+    if (S.screen === 'scan') render();
+  }
+  S.scan.running = false;
+  if (S.scan.items.some(i => i.dir === 'up' || i.dir === 'down')) haptic('success');
+  if (S.screen === 'scan') render();
+}
+
+/* ── Cloudflare Worker: отправка ботом, автопостинг, мгновенная выдача доступа ── */
+async function workerApi(action, extra = {}) {
+  if (!CONFIG.WORKER_URL) throw new Error('no worker');
+  if (!tg || !tg.initData) throw new Error(t('noTg'));
+  const r = await fetch(CONFIG.WORKER_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initData: tg.initData, action, ...extra }) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || !d.ok) throw new Error(d.error || 'HTTP ' + r.status);
+  return d;
+}
+async function loadWorkerStatus() {
+  S.worker = { loading: true };
+  try { S.worker = { data: await workerApi('status') }; } catch (e) { S.worker = { error: e.message }; }
+  if (S.screen === 'admin') render();
+}
+async function checkWorkerAccess() {
+  if (!CONFIG.WORKER_URL || !tgUser || isRealAdmin) return;
+  try { if ((await workerApi('me')).unlocked) { S.workerUnlocked = true; render(); } } catch { }
+}
+// бот (через Worker) или окно «Поделиться», если Worker не настроен/недоступен
+async function postToChannel(text) {
+  if (CONFIG.WORKER_URL && tg && tg.initData) {
+    try { await workerApi('post', { text }); toast(t('sentBot')); return; }
+    catch (e) { toast(t('sendFail', { e: e.message })); }
+  }
+  shareToChannel(text);
 }
 
 let resolving = false;
@@ -763,13 +869,25 @@ const pct = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
 
 /* ═════════════════════════ ЭКРАНЫ ═════════════════════════ */
 function renderSteps() {
-  const st = { select: 1, signal: 1, result: 2, history: 3 }[S.screen] || 0;
+  const st = { select: 1, signal: 1, scan: 1, result: 2, history: 3 }[S.screen] || 0;
   $('#steps').innerHTML = [['select', 1, 's1'], ['result', 2, 's2'], ['history', 3, 's3']].map(([sc, n, k], i) =>
     (i ? '<span class="arrow">→</span>' : '') + `<button class="step ${st === n ? 'on' : ''}" data-go="${sc}"><i>${n}</i>${t(k)}</button>`).join('');
 }
 function renderFoot() {
-  $('#foot').innerHTML = `<button data-go="how">${t('how')}</button><button data-act="help">💬 ${t('help')}</button>` + (isAdmin ? `<button data-go="day">📊 ${t('day')}</button><button data-go="ref">🔗 ${t('refTitle')}</button>` : '');
+  $('#foot').innerHTML = `<button data-go="how">${t('how')}</button><button data-act="help">💬 ${t('help')}</button>` + (isAdmin ? `<button data-go="day">📊 ${t('day')}</button><button data-go="admin">⚙️ ${t('admTitle')}</button>` : '');
 }
+
+const icon = (a, lg) => `<span class="pair${lg ? ' lg' : ''}">${a.ic.map((s, i) => `<i class="p${i}">${esc(s)}</i>`).join('')}</span>`;
+const ARROW = {
+  up: '<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
+  down: '<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>',
+  none: '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 12h12"/></svg>'
+};
+const MI = {
+  trend: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/></svg>',
+  level: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18h5v-6h5V6h8"/></svg>',
+  move: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M8 7l4-4 4 4M8 17l4 4 4-4"/></svg>'
+};
 
 function lockCard() {
   return `<div class="center"><p style="font-size:17px;font-weight:700;margin:4px 0 6px">${t('lockTitle')}</p><p class="note">${t('lockText')}</p>
@@ -785,7 +903,7 @@ function vSelect() {
   else if (S.cls === 'stocks' && S.stockRT === 'delayed') list = `<p class="warn">⚠ ${t('stocksNoRT')}</p>`;
   else list = `<div class="grid">` + assets.map(a => {
     const o = isOpen(a.cls), no = o ? null : nextOpen(a.cls), lk = assetLocked(a);
-    return `<button class="asset ${S.assetId === a.id ? 'on' : ''}" data-asset="${a.id}" ${o && !lk ? '' : 'disabled'}><b>${lk ? '🔒 ' : ''}${a.name}</b><small><span class="dot ${o ? 'g' : 'r'}"></span>${o ? (a.cls === 'crypto' ? t('open247') : t('open')) : t('opensAt', { t: no ? dayHm(no) : '—' })}</small></button>`;
+    return `<button class="asset ${S.assetId === a.id ? 'on' : ''}" data-asset="${a.id}" ${o && !lk ? '' : 'disabled'}><span class="arow">${icon(a)}<span><b>${lk ? '🔒 ' : ''}${a.name}</b><small><span class="dot ${o ? 'g' : 'r'}"></span>${o ? (a.cls === 'crypto' ? t('open247') : t('open')) : t('opensAt', { t: no ? dayHm(no) : '—' })}</small></span></span></button>`;
   }).join('') + `</div>` + (assets.some(assetLocked) ? `<div class="card mt" style="margin-bottom:0">${lockCard()}</div>` : '');
   let hours = '';
   if (S.cls === 'stocks') { const ss = stockSession(); hours = ss ? t('stocksSession', { a: hm(ss.start), b: hm(ss.end) }) : ''; if (S.stockRT === 'unknown' && !isOpen('stocks')) hours += '<br>' + t('stocksLater'); }
@@ -796,7 +914,33 @@ function vSelect() {
   <div class="card"><div class="label">${t('asset')}</div>${list}${hours ? `<p class="note mt">${hours}</p>` : ''}</div>
   <div class="card"><div class="label">${t('expiry')}</div><div class="seg">${[1, 3, 5].map(n => `<button class="${S.exp === n ? 'on' : ''}" data-exp="${n}" ${isLocked('exp' + n) ? 'disabled' : ''}>${isLocked('exp' + n) ? '🔒 ' : ''}${n} ${t('min')}</button>`).join('')}</div></div>
   <button class="btn" data-act="analyze" ${canGo ? '' : 'disabled'}>${t('analyze')}</button>
+  <button class="btn ghost mt" data-go="scan">${t('scanBtn')}</button>
   ${tg ? '' : `<p class="note center mt">${t('noTg')}</p>`}`;
+}
+
+function vScan() {
+  const sc = S.scan;
+  if (!sc) return `<div class="card center"><div class="spin"></div><p class="note">${t('scanRunning')}</p></div>`;
+  const found = sc.items.filter(i => i.dir === 'up' || i.dir === 'down');
+  const next = new Date((Math.floor(Date.now() / 60000) + 1) * 60000);
+  const rows = sc.items.map(i => {
+    const a = ASSET[i.id];
+    let right;
+    if (i.status === 'wait') right = `<span class="note">…</span>`;
+    else if (i.status === 'ok' && i.dir !== 'none') right = `<span class="pill ${i.dir === 'up' ? 'win' : 'loss'}">${i.dir === 'up' ? '▲' : '▼'} ${t(i.dir)}</span> <button class="chip" data-scanopen="${i.id}">${t('scanOpen')}</button>`;
+    else if (i.status === 'ok') right = `<span class="note">${t('scanNo')} · RSI ${i.rsi.toFixed(0)}</span>`;
+    else if (i.status === 'rate') right = `<span class="note">${t('scanRate')}</span>`;
+    else right = `<span class="note">${t('nodata')}</span>`;
+    return `<div class="scan-row"><span class="arow">${icon(a)}<b>${a.name}</b></span><span>${right}</span></div>`;
+  }).join('');
+  return `
+  <div class="card"><div class="label">${t('scanTitle')} · ${S.exp} ${t('min')}</div>
+    ${sc.items.length ? rows : `<p class="note">${t('scanEmpty')}</p>`}
+    ${sc.running ? `<p class="note mt" style="margin-bottom:0">${t('scanRunning')}</p>`
+      : !found.length ? `<p class="note mt" style="margin-bottom:0">${t('scanNone')}<br>${t('scanNext', { t: hm(next) })}</p>` : ''}</div>
+  <button class="chip ${sc.auto ? 'on' : ''}" data-act="scanauto" style="margin-bottom:12px">${sc.auto ? '✓ ' : ''}${t('scanAuto')}</button>
+  <button class="btn" data-act="scan" ${sc.running ? 'disabled' : ''}>${t('scanAgain')}</button>
+  <button class="btn ghost mt" data-go="select">${t('change')}</button>`;
 }
 
 function checksHtml(r, a, side) {
@@ -825,16 +969,18 @@ function vSignal() {
   const ai = S.ai[an.key];
   const aiBlock = !CONFIG.AI.ENABLED ? '' : `<div class="card"><div class="label">${t('aiTitle')}</div>${isLocked('ai') ? lockCard() : ai ? (ai.loading ? `<div class="spin"></div><p class="note center">${t('aiLoading')}</p>` : ai.error ? `<p class="warn">${t('aiErr')}</p>${ai.needKey && isAdmin ? `<p class="note">${t('aiKey')}</p>` : ''}<button class="btn ghost sm" data-act="ai">${t('retry')}</button>` : `<div class="ai">${esc(ai.text)}</div><p class="note mt">${t('aiNote')}</p>`) : `<button class="btn ghost sm" data-act="ai">${t('aiBtn')}</button>`}</div>`;
   return back + `
+  <div class="card asset-head">${icon(a, true)}<div><b>${a.name}</b><div class="note">${an.exp} ${t('min')} · ${t('sigCandle', { t: hm(new Date(an.sigClose - 60000)) })}</div></div></div>
   <div class="dir ${d}">
-    <div class="note">${a.name} · ${an.exp} ${t('min')} · ${t('sigCandle', { t: hm(new Date(an.sigClose - 60000)) })}</div>
-    <div class="big">${d === 'up' ? '▲ ' : d === 'down' ? '▼ ' : ''}${t(d)}</div>
-    ${d !== 'none' ? `<div class="timer" data-deadline="${an.deadline}"></div>` : ''}
-    ${d !== 'none' ? `<div class="sub" style="color:var(--text);font-size:14px">${esc(t('instr', { dir: dirWord, n: an.exp, asset: a.name }))}</div>` : `<div class="sub">${t('price')} ${fp(a, r.close)} · RSI ${r.rsi.toFixed(1)}</div>`}
+    <div class="dir-row"><div class="orb">${ARROW[d]}</div><div>
+      <div class="big">${t(d)}</div>
+      ${d !== 'none' ? `<div class="timer" data-deadline="${an.deadline}"></div>` : `<div class="sub">${t('price')} ${fp(a, r.close)} · RSI ${r.rsi.toFixed(1)}</div>`}
+    </div></div>
+    ${d !== 'none' ? `<div class="instr">${esc(t('instr', { dir: dirWord, n: an.exp, asset: a.name }))}</div>` : ''}
   </div>
   <div class="metrics">
-    <div class="metric"><div class="k">${t('trendCard')}</div><div class="v ${trendCls(r.trend.dir)}">${trendTxt(r.trend.dir)}</div><div class="s">EMA20/50 ${r.trend.diffPct >= 0 ? '+' : ''}${r.trend.diffPct.toFixed(3)}%</div></div>
-    <div class="metric"><div class="k">${t('levelCard')}</div><div class="v">${fdist(a, r.level.dist)}</div><div class="s">${t(r.level.type === 'high' ? 'toHigh' : 'toLow')} ${fp(a, r.level.level)}</div></div>
-    <div class="metric"><div class="k">${t('moveCard')}</div><div class="v">${fdist(a, r.move)}</div><div class="s">${t('avgHour')}</div></div>
+    <div class="metric"><div class="k">${MI.trend}${t('trendCard')}</div><div class="v ${trendCls(r.trend.dir)}">${trendTxt(r.trend.dir)}</div><div class="s">EMA20/50 ${r.trend.diffPct >= 0 ? '+' : ''}${r.trend.diffPct.toFixed(3)}%</div></div>
+    <div class="metric"><div class="k">${MI.level}${t('levelCard')}</div><div class="v">${fdist(a, r.level.dist)}</div><div class="s">${t(r.level.type === 'high' ? 'toHigh' : 'toLow')} ${fp(a, r.level.level)}</div></div>
+    <div class="metric"><div class="k">${MI.move}${t('moveCard')}</div><div class="v">${fdist(a, r.move)}</div><div class="s">${t('avgHour')}</div></div>
   </div>
   <div class="card">
     ${d !== 'none' ? `<div class="label">${t('reasons')}</div><p style="margin:0">${reasons.map(esc).join(' · ')}</p>`
@@ -843,7 +989,7 @@ function vSignal() {
   </div>
   ${isAdmin && rec ? `<div class="card"><div class="label">${t('adminOnly')} · #${rec.id}</div><div class="row"><button class="btn sm" data-act="post" data-id="${rec.id}">${t('sendCh')}</button><button class="btn ghost sm" data-act="copy" data-id="${rec.id}">${t('copy')}</button></div>${rec.posted ? `<p class="note mt" style="margin-bottom:0">✓ ${t('inCh')}</p>` : ''}</div>` : ''}
   ${aiBlock}
-  <div class="row">${d !== 'none' ? `<button class="btn" data-go="result">${t('toResult')}</button>` : `<button class="btn" data-act="analyze">${t('again')}</button>`}</div>
+  ${d !== 'none' ? `<button class="btn" data-go="result">${t('toResult')}</button>` : `<button class="btn" data-go="scan">${t('scanBtn')}</button><button class="btn ghost mt" data-act="analyze">${t('again')}</button>`}
   <button class="btn ghost mt" data-act="ref">${t('where')}</button>
   <div class="disc">${t('disc')}</div>`;
 }
@@ -870,7 +1016,7 @@ function vResult() {
     ? (r.posted ? `<div class="row"><button class="btn sm" data-act="postres" data-id="${r.id}">${t('sendRes')}</button><button class="btn ghost sm" data-act="copyres" data-id="${r.id}">${t('copy')}</button></div><p class="note mt" style="margin-bottom:0">${r.resultPosted ? '✓ ' + t('resSent') : t('resNotSent')}</p>` : `<p class="note" style="margin:0">${t('notPosted')}</p>`)
     : (r.posted ? '' : `<div class="row"><button class="btn sm" data-act="post" data-id="${r.id}">${t('sendCh')}</button><button class="btn ghost sm" data-act="copy" data-id="${r.id}">${t('copy')}</button></div>`)}</div>` : '';
   return `
-  <div class="dir ${r.dir}"><div class="note">#${r.id} · ${a.name} · ${r.exp} ${t('min')} · ${hm(new Date(r.sigClose))}</div><div class="big" style="font-size:28px">${r.dir === 'up' ? '▲' : '▼'} ${t(r.dir)}</div></div>
+  <div class="dir ${r.dir}"><div class="dir-row"><div class="orb" style="width:56px;height:56px">${ARROW[r.dir]}</div><div><div class="big" style="font-size:28px">${t(r.dir)}</div><div class="note">#${r.id} · ${a.name} · ${r.exp} ${t('min')} · ${hm(new Date(r.sigClose))}</div></div></div></div>
   <div class="card center">${body}</div>
   ${admin}
   <p class="note">${t('rule')}</p>
@@ -912,8 +1058,9 @@ const cleanSub = s => (s || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64) || '
 function settingsJson() {
   const d = S.refDraft;
   return JSON.stringify({
-    REF_URL: d.url, SUBID_PARAM: d.param, SUPPORT_USERNAME: cfg('SUPPORT_USERNAME'),
-    UNLOCKED_IDS: Array.isArray(REMOTE.data.UNLOCKED_IDS) ? REMOTE.data.UNLOCKED_IDS : []
+    REF_URL: refValid(d) ? d.url : '', SUBID_PARAM: refValid(d) ? d.param : '',
+    SUPPORT_USERNAME: /^[A-Za-z0-9_]{4,32}$/.test(cfg('SUPPORT_USERNAME').replace(/^@/, '')) ? cfg('SUPPORT_USERNAME') : '',
+    UNLOCKED_IDS: S.idsDraft
   }, null, 2);
 }
 function updateRefPreview() {
@@ -925,9 +1072,60 @@ function updateRefPreview() {
   set('srcApp', appLink(sub));
   set('srcRef', buildRef(cfg('REF_URL'), cfg('SUBID_PARAM'), sub));
 }
-function vRef() {
+function admStats() {
+  const now = Date.now(), today = mskDayKey(new Date()), p = S.ap;
+  const list = Store.all().filter(r => p === 'ever' ? true : p === 'today' ? mskDayKey(new Date(r.ts)) === today : now - r.ts <= (p === 'd7' ? 7 : 30) * 864e5);
+  const st = statsOf(list), byAsset = {};
+  for (const r of list) (byAsset[r.assetId] = byAsset[r.assetId] || []).push(r);
+  const rows = Object.entries(byAsset).sort((x, y) => y[1].length - x[1].length).map(([id, l]) => {
+    const s = statsOf(l); return `<tr><td>${ASSET[id].name}</td><td>${l.length}</td><td class="c-up">${s.w}</td><td class="c-down">${s.l}</td><td>${pct(s.wr)}</td></tr>`;
+  }).join('');
+  return `<div class="card"><div class="label">${t('admStats')}</div>
+    <div class="chips">${['today', 'd7', 'd30', 'ever'].map(x => `<button class="chip ${p === x ? 'on' : ''}" data-ap="${x}">${t(x)}</button>`).join('')}</div>
+    <div class="stats"><div class="stat"><b>${list.length}</b><span>${t('admTotal')}</span></div><div class="stat"><b>${list.filter(r => r.posted).length}</b><span>${t('admPosted')}</span></div><div class="stat"><b>${list.filter(r => r.status === 'pending').length}</b><span>${t('pending')}</span></div></div>
+    <div class="stats mt"><div class="stat"><b class="c-up">${st.w}</b><span>${t('win')}</span></div><div class="stat"><b class="c-down">${st.l}</b><span>${t('loss')}</span></div><div class="stat"><b>${st.f}</b><span>${t('refund')}</span></div></div>
+    <div class="row mt"><div class="stat"><b>${pct(st.wr)}</b><span>${t('winrate')}</span></div><div class="stat"><b>${pct(beRate())}</b><span>${t('be')}</span></div></div>
+    ${rows ? `<table class="t mt"><tr><th>${t('asset')}</th><th>N</th><th>+</th><th>−</th><th>%</th></tr>${rows}</table>` : ''}
+    <p class="note mt" style="margin-bottom:0">${t('admStatsCap')}</p></div>`;
+}
+function admBot() {
+  if (!CONFIG.WORKER_URL) return `<div class="card"><div class="label">${t('admBot')}</div><p class="note" style="margin:0">${t('admNoWorker')}</p></div>`;
+  const W = S.worker;
+  if (!W) { S.worker = { loading: true }; setTimeout(loadWorkerStatus, 0); }
+  if (!W || W.loading) return `<div class="card"><div class="label">${t('admBot')}</div><div class="spin"></div></div>`;
+  if (W.error) return `<div class="card"><div class="label">${t('admBot')}</div><p class="warn">${esc(t('admWorkerErr', { e: W.error }))}</p><button class="btn ghost sm" data-act="wreload">${t('retry')}</button></div>`;
+  const d = W.data;
+  if (!d.kv) return `<div class="card"><div class="label">${t('admBot')}</div><p class="warn" style="margin:0">${t('admNoKv')}</p></div>`;
+  return `<div class="card"><div class="label">${t('admBot')}</div>
+    <p style="margin:0 0 8px">${t('admAuto')}: <b class="${d.auto ? 'c-up' : 'c-down'}">${d.auto ? t('on') : t('off')}</b> · ${esc(d.assets)} · ${d.exp} ${t('min')}<br><span class="note">${t('admChannel')}: ${esc(d.channel || '—')}</span></p>
+    <p class="note">${t('admToday', d.today)} · ${t('admPending', { n: d.pending })}</p>
+    <div class="row"><button class="btn sm" data-act="wauto">${d.auto ? t('admAutoOff') : t('admAutoOn')}</button><button class="btn ghost sm" data-act="wtest">${t('admTest')}</button></div>
+    <button class="btn ghost sm mt" data-act="wday">${t('admDayBot')}</button></div>`;
+}
+function admAccess() {
+  const viaW = CONFIG.WORKER_URL && S.worker && S.worker.data && S.worker.data.kv;
+  const ids = viaW ? S.worker.data.access : S.idsDraft;
+  const codeIds = CONFIG.UNLOCKED_IDS;
+  const list = [...codeIds.map(id => `<div class="id-row"><span>${id}</span><span class="note">${t('admInCode')}</span></div>`),
+    ...ids.map(id => `<div class="id-row"><span>${id}</span><button class="chip" data-rmid="${id}">✕</button></div>`)].join('');
+  return `<div class="card"><div class="label">${t('admAccess')}</div>
+    <p class="note" style="margin-top:0">${t('admAccessCap')}</p>
+    ${list || `<p class="note">${t('admNone')}</p>`}
+    <div class="row mt"><input class="inp" id="admId" inputmode="numeric" autocomplete="off" placeholder="${t('admIdPh')}" style="margin:0"><button class="btn sm" data-act="addid" style="flex:0 0 auto;width:auto;padding:10px 16px">${t('admAdd')}</button></div>
+    <p class="note mt" style="margin-bottom:0">${viaW ? t('admViaWorker') : t('admViaGit')}</p></div>`;
+}
+function vAdmin() {
   if (!S.refDraft) S.refDraft = { url: cfg('REF_URL'), param: cfg('SUBID_PARAM') };
+  if (!S.idsDraft) S.idsDraft = Array.isArray(REMOTE.data.UNLOCKED_IDS) ? REMOTE.data.UNLOCKED_IDS.map(Number).filter(Number.isFinite) : [];
   if (S.srcSub == null) S.srcSub = 'yt01';
+  if (!S.ap) S.ap = 'd7';
+  return admStats() + admBot() + admAccess() + vRef() + `
+  <div class="card"><div class="label">${t('admSaveTitle')}</div>
+    <p class="note" style="margin-top:0">${t('refHow')}</p>
+    <button class="btn sm" data-act="copysettings">${t('refCopyJson')}</button>
+    ${CONFIG.GITHUB_REPO ? `<button class="btn ghost sm mt" data-act="ghedit">${t('refGh')}</button>` : `<p class="note mt">${t('refNoRepo')}</p>`}</div>`;
+}
+function vRef() {
   const d = S.refDraft;
   setTimeout(updateRefPreview, 0);
   return `
@@ -940,9 +1138,7 @@ function vRef() {
     <input class="inp" id="refParam" autocomplete="off" placeholder="${t('refParamPh')}" value="${esc(d.param)}">
     <p class="note" style="margin:0">${t('refPreview')}:</p><div class="mono" id="refPreview"></div>
     <p class="note warn" id="refBad" style="display:none">${t('refBad')}</p>
-    <div class="row"><button class="btn ghost sm" data-act="reftest" data-needvalid>${t('refTest')}</button><button class="btn sm" data-act="copysettings" data-needvalid>${t('refCopyJson')}</button></div>
-    ${CONFIG.GITHUB_REPO ? `<button class="btn ghost sm mt" data-act="ghedit">${t('refGh')}</button>` : `<p class="note mt">${t('refNoRepo')}</p>`}
-    <p class="note mt" style="margin-bottom:0">${t('refHow')}</p></div>
+    <button class="btn ghost sm" data-act="reftest" data-needvalid>${t('refTest')}</button></div>
   <div class="card"><div class="label">${t('srcTitle')}</div>
     <input class="inp" id="srcSub" autocomplete="off" placeholder="${t('srcSubPh')}" value="${esc(S.srcSub)}">
     <p class="note" style="margin:0">${t('srcApp')}:</p><div class="mono" id="srcApp"></div>
@@ -1021,7 +1217,7 @@ function render() {
   $('#tagline').textContent = t('tagline');
   $('#btnLang').textContent = S.lang === 'ru' ? 'EN' : 'RU';
   renderSteps(); renderFoot();
-  const v = { select: vSelect, signal: vSignal, result: vResult, history: vHistory, how: vHow, day: vDay, ref: isAdmin ? vRef : vSelect, selftest: vSelftest }[S.screen] || vSelect;
+  const v = { select: vSelect, signal: vSignal, result: vResult, history: vHistory, how: vHow, day: vDay, admin: isAdmin ? vAdmin : vSelect, scan: vScan, selftest: vSelftest }[S.screen] || vSelect;
   $('#view').innerHTML = v();
   if (tg && tg.BackButton) S.screen === 'select' ? tg.BackButton.hide() : tg.BackButton.show();
   tick();
@@ -1034,6 +1230,10 @@ function tick() {
     el.classList.toggle('exp', left <= 0);
     el.textContent = left > 0 ? `${t('window')}: ${mmss(left)}` : t('windowOut');
   });
+  // автопоиск: раз в минуту, через 3 с после закрытия свечи
+  if (S.screen === 'scan' && S.scan && S.scan.auto && !S.scan.running && new Date(now).getSeconds() >= 3 && S.scan.lastMin !== Math.floor(now / 60000)) {
+    S.scan.lastMin = Math.floor(now / 60000); scanAll();
+  }
   let rerender = false;
   document.querySelectorAll('[data-due]').forEach(el => { const left = +el.dataset.due - now; el.textContent = mmss(left); if (left <= 0) rerender = true; });
   if (rerender) render();
@@ -1045,7 +1245,16 @@ setInterval(() => { if (S.screen === 'select') render(); }, 60000);
 document.addEventListener('click', async e => {
   const b = e.target.closest('button,a'); if (!b) return;
   const ds = b.dataset;
-  if (ds.go) { S.screen = ds.go; if (ds.go === 'result') resolvePending(true); return render(); }
+  if (ds.go) { S.screen = ds.go; if (ds.go === 'result') resolvePending(true); if (ds.go === 'scan') scanAll(); return render(); }
+  if (ds.scanopen) { const a = ASSET[ds.scanopen]; S.assetId = a.id; S.cls = a.cls; return runAnalysis(); }
+  if (ds.ap) { S.ap = ds.ap; return render(); }
+  if (ds.rmid) {
+    const id = +ds.rmid;
+    if (CONFIG.WORKER_URL && S.worker && S.worker.data && S.worker.data.kv) {
+      try { S.worker.data.access = (await workerApi('revoke', { id })).access; toast(t('revoked')); } catch (err) { toast(err.message); }
+    } else S.idsDraft = S.idsDraft.filter(x => x !== id);
+    return render();
+  }
   if (ds.cls) { S.cls = ds.cls; const f = ASSETS.find(a => a.cls === ds.cls && isOpen(a.cls) && !assetLocked(a)) || ASSETS.find(a => a.cls === ds.cls); S.assetId = f.id; if (ds.cls === 'stocks' && S.stockRT === 'unknown') checkStocksRealtime(); return render(); }
   if (ds.asset) { S.assetId = ds.asset; return render(); }
   if (ds.exp) { S.exp = +ds.exp; return render(); }
@@ -1059,17 +1268,31 @@ document.addEventListener('click', async e => {
     case 'help': return openTg(supportLink());
     case 'copyid': if (tgUser) copyText(String(tgUser.id)); return;
     case 'resolve': return resolvePending(true);
-    case 'post': if (rec) { shareToChannel(postSignalText(rec)); Store.patch(id, { posted: true }); render(); } return;
+    case 'post': if (rec) { await postToChannel(postSignalText(rec)); Store.patch(id, { posted: true }); render(); } return;
     case 'copy': if (rec) copyText(postSignalText(rec)); return;
-    case 'postres': if (rec) { shareToChannel(postResultText(rec)); Store.patch(id, { resultPosted: true }); render(); } return;
+    case 'postres': if (rec) { await postToChannel(postResultText(rec)); Store.patch(id, { resultPosted: true }); render(); } return;
     case 'copyres': if (rec) copyText(postResultText(rec)); return;
     case 'clear': if (await confirmBox(t('clearQ'))) { Store.clear(); S.currentId = null; render(); } return;
-    case 'postday': { const n = dayList().filter(r => !r.resultPosted).length; if (n && !(await confirmBox(t('dayWarn', { n })))) return; shareToChannel(dayText()); return; }
+    case 'postday': { const n = dayList().filter(r => !r.resultPosted).length; if (n && !(await confirmBox(t('dayWarn', { n })))) return; await postToChannel(dayText()); return; }
     case 'copyday': return copyText(dayText());
     case 'reftest': if (refValid(S.refDraft)) openExternal(buildRef(S.refDraft.url, S.refDraft.param, 'test')); return;
-    case 'copysettings': if (refValid(S.refDraft)) copyText(settingsJson()); return;
+    case 'copysettings': return copyText(settingsJson());
     case 'ghedit': return openExternal(`https://github.com/${CONFIG.GITHUB_REPO}/edit/main/settings.json`);
     case 'copysrc': return copyText(appLink(cleanSub(S.srcSub)));
+    case 'scan': return scanAll();
+    case 'scanauto': if (S.scan) { S.scan.auto = !S.scan.auto; S.scan.lastMin = Math.floor(Date.now() / 60000); } return render();
+    case 'addid': {
+      const el = document.getElementById('admId'), nid = Number((el && el.value || '').trim());
+      if (!Number.isSafeInteger(nid) || nid <= 0) return toast(t('badId'));
+      if (CONFIG.WORKER_URL && S.worker && S.worker.data && S.worker.data.kv) {
+        try { S.worker.data.access = (await workerApi('grant', { id: nid })).access; toast(t('granted')); } catch (err) { toast(err.message); }
+      } else if (!S.idsDraft.includes(nid)) { S.idsDraft.push(nid); toast(t('grantedDraft')); }
+      return render();
+    }
+    case 'wreload': return loadWorkerStatus();
+    case 'wauto': try { await workerApi('setAuto', { on: !S.worker.data.auto }); } catch (err) { toast(err.message); } return loadWorkerStatus();
+    case 'wtest': try { await workerApi('post', { text: t('testPost') }); toast(t('sentBot')); } catch (err) { toast(err.message); } return;
+    case 'wday': try { await workerApi('postDay'); toast(t('sentBot')); } catch (err) { toast(err.message); } return;
   }
 });
 document.addEventListener('input', e => {
@@ -1089,7 +1312,7 @@ window.TA = { Indicators, Signal, Resolve, aggregate, randomWalk, backtest };
 applyTheme();
 if (new URLSearchParams(location.search).get('selftest') === '1') S.screen = 'selftest';
 render();
-if (S.screen !== 'selftest') { loadSettings().then(checkStocksRealtime); resolvePending(true); }
+if (S.screen !== 'selftest') { loadSettings().then(checkStocksRealtime); checkWorkerAccess(); resolvePending(true); }
 </script>
 </body>
 </html>
