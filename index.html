@@ -1,0 +1,1094 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>TA Signals</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{
+  --bg:#0a0e16; --bg2:#111827; --card:rgba(255,255,255,.055); --card2:rgba(255,255,255,.09);
+  --border:rgba(255,255,255,.10); --text:#e8edf5; --muted:#8c97a9;
+  --up:#16c784; --up-bg:rgba(22,199,132,.14); --down:#ef4444; --down-bg:rgba(239,68,68,.14);
+  --none:#94a3b8; --warn:#f5a524; --accent:#3b82f6; --accent-text:#fff; --radius:18px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{
+  background:radial-gradient(1200px 600px at 10% -10%,rgba(59,130,246,.18),transparent 60%),
+             radial-gradient(900px 500px at 110% 10%,rgba(22,199,132,.12),transparent 60%),var(--bg);
+  background-attachment:fixed;color:var(--text);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Arial,sans-serif;
+  min-height:100vh;
+}
+#app{max-width:560px;margin:0 auto;padding:12px 16px calc(28px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+button:disabled{cursor:not-allowed}
+.top{display:flex;align-items:center;gap:10px;padding:4px 0 12px}
+.brand{display:flex;align-items:center;gap:10px;flex:1;min-width:0}
+.brand b{font-size:17px;letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand small{display:block;color:var(--muted);font-size:12px;font-weight:400}
+.icon-btn{height:34px;min-width:34px;padding:0 10px;border-radius:12px;background:var(--card);border:1px solid var(--border);font-size:13px;font-weight:600}
+.steps{display:flex;gap:6px;margin-bottom:14px}
+.step{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;padding:9px 4px;border-radius:14px;background:var(--card);border:1px solid var(--border);color:var(--muted);font-size:13px;font-weight:600}
+.step i{font-style:normal;width:20px;height:20px;border-radius:50%;display:inline-grid;place-items:center;background:var(--card2);font-size:11px}
+.step.on{color:var(--text);border-color:color-mix(in srgb,var(--accent) 60%,transparent);background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.step.on i{background:var(--accent);color:var(--accent-text)}
+.arrow{color:var(--muted);align-self:center;font-size:12px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:12px;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.label{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px;font-weight:600}
+.seg{display:flex;gap:6px;background:rgba(0,0,0,.25);padding:4px;border-radius:14px;border:1px solid var(--border)}
+.seg button{flex:1;padding:9px 6px;border-radius:10px;font-weight:600;color:var(--muted);font-size:14px}
+.seg button.on{background:var(--card2);color:var(--text);box-shadow:0 1px 0 rgba(255,255,255,.06) inset}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.asset{text-align:left;padding:11px 12px;border-radius:14px;background:rgba(255,255,255,.035);border:1px solid var(--border)}
+.asset b{display:block;font-size:15px}
+.asset small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.asset.on{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.asset:disabled{opacity:.45}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:1px}
+.dot.g{background:var(--up)}.dot.r{background:var(--down)}
+.btn{display:block;width:100%;padding:14px;border-radius:14px;background:var(--accent);color:var(--accent-text);font-weight:700;font-size:16px;text-align:center;text-decoration:none}
+.btn.ghost{background:var(--card);border:1px solid var(--border);color:var(--text);font-weight:600;font-size:15px}
+.btn.sm{padding:10px;font-size:14px}
+.btn:disabled{opacity:.5}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.mt{margin-top:10px}
+.note{color:var(--muted);font-size:13px}
+.warn{color:var(--warn)}
+.center{text-align:center}
+.dir{border-radius:22px;padding:22px 16px;text-align:center;margin-bottom:12px;border:1px solid var(--border)}
+.dir.up{background:linear-gradient(160deg,rgba(22,199,132,.28),rgba(22,199,132,.06));border-color:rgba(22,199,132,.45)}
+.dir.down{background:linear-gradient(160deg,rgba(239,68,68,.28),rgba(239,68,68,.06));border-color:rgba(239,68,68,.45)}
+.dir.none{background:var(--card)}
+.dir .big{font-size:40px;font-weight:800;letter-spacing:1px;line-height:1.1}
+.dir.up .big{color:var(--up)}.dir.down .big{color:var(--down)}.dir.none .big{color:var(--none);font-size:30px}
+.dir .sub{color:var(--muted);margin-top:6px;font-size:13px}
+.timer{display:inline-block;margin-top:12px;padding:7px 14px;border-radius:999px;background:rgba(0,0,0,.3);font-weight:700;font-variant-numeric:tabular-nums}
+.timer.exp{color:var(--warn)}
+.metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:12px}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:10px}
+.metric .k{color:var(--muted);font-size:11px;font-weight:600}
+.metric .v{font-size:16px;font-weight:700;margin-top:4px;font-variant-numeric:tabular-nums;word-break:break-word}
+.metric .s{color:var(--muted);font-size:11px;margin-top:2px}
+.c-up{color:var(--up)}.c-down{color:var(--down)}.c-none{color:var(--none)}
+.checks{margin:0;padding:0;list-style:none}
+.checks li{display:flex;gap:8px;padding:4px 0;font-size:14px}
+.checks .ok{color:var(--up)}.checks .no{color:var(--down)}
+.checks small{color:var(--muted)}
+.pill{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:700}
+.pill.win{background:var(--up-bg);color:var(--up)}.pill.loss{background:var(--down-bg);color:var(--down)}
+.pill.refund,.pill.pending,.pill.nodata{background:var(--card2);color:var(--muted)}
+.hist-item{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border)}
+.hist-item:last-child{border-bottom:0}
+.hist-item .meta{color:var(--muted);font-size:12px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.chip{padding:6px 11px;border-radius:999px;background:var(--card);border:1px solid var(--border);font-size:13px;color:var(--muted);font-weight:600}
+.chip.on{color:var(--text);border-color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.stat{text-align:center;padding:10px 4px;border-radius:14px;background:rgba(0,0,0,.2)}
+.stat b{display:block;font-size:22px}
+.stat span{font-size:12px;color:var(--muted)}
+.disc{font-size:12px;color:var(--muted);border-left:3px solid var(--warn);padding:8px 10px;background:rgba(245,165,36,.07);border-radius:8px;margin:12px 0}
+.ai{white-space:pre-wrap;font-size:14px}
+.foot{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:16px}
+.foot button{padding:8px 12px;border-radius:12px;background:var(--card);border:1px solid var(--border);font-size:13px;color:var(--muted);font-weight:600}
+.spin{width:28px;height:28px;border:3px solid var(--card2);border-top-color:var(--accent);border-radius:50%;animation:sp 0.8s linear infinite;margin:10px auto}
+@keyframes sp{to{transform:rotate(360deg)}}
+.how h3{margin:14px 0 6px;font-size:15px}.how p,.how li{color:#cdd5e1;font-size:14px}.how ul{padding-left:18px;margin:6px 0}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#1f2937;border:1px solid var(--border);padding:10px 16px;border-radius:12px;font-size:14px;z-index:9;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+table.t{width:100%;border-collapse:collapse;font-size:13px}
+table.t td{padding:6px 4px;border-bottom:1px solid var(--border)}
+.pass{color:var(--up);font-weight:700}.fail{color:var(--down);font-weight:700}
+.inp{width:100%;padding:11px 12px;border-radius:12px;background:rgba(0,0,0,.3);border:1px solid var(--border);color:var(--text);font:inherit;font-size:14px;margin-bottom:8px;outline:none}
+.inp:focus{border-color:var(--accent)}
+.mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12.5px;word-break:break-all;background:rgba(0,0,0,.25);padding:8px 10px;border-radius:10px;margin:4px 0 8px}
+@media (max-width:360px){.metrics{grid-template-columns:1fr 1fr}.dir .big{font-size:34px}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="top">
+    <div class="brand">
+      <!-- Логотип: свечи + пульс (собственный, без чужих брендов) -->
+      <svg width="38" height="38" viewBox="0 0 48 48" aria-hidden="true">
+        <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#16c784"/><stop offset="1" stop-color="#3b82f6"/></linearGradient></defs>
+        <rect width="48" height="48" rx="13" fill="url(#lg)"/>
+        <rect x="10" y="20" width="6" height="14" rx="1.5" fill="#fff" opacity=".9"/><line x1="13" y1="15" x2="13" y2="38" stroke="#fff" stroke-width="2" opacity=".9"/>
+        <rect x="21" y="13" width="6" height="12" rx="1.5" fill="#fff"/><line x1="24" y1="9" x2="24" y2="30" stroke="#fff" stroke-width="2"/>
+        <rect x="32" y="22" width="6" height="10" rx="1.5" fill="#fff" opacity=".75"/><line x1="35" y1="18" x2="35" y2="36" stroke="#fff" stroke-width="2" opacity=".75"/>
+      </svg>
+      <div><b id="appName"></b><small id="tagline"></small></div>
+    </div>
+    <button class="icon-btn" id="btnHelp" title="Help">💬</button>
+    <button class="icon-btn" id="btnLang">EN</button>
+  </header>
+  <nav class="steps" id="steps"></nav>
+  <main id="view"></main>
+  <nav class="foot" id="foot"></nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═════════════════════════ НАСТРОЙКИ ═════════════════════════ */
+const CONFIG = {
+  APP_NAME:        "[НАЗВАНИЕ]",
+  BOT_USERNAME:    "[имя_бота]",          // без @
+  APP_SHORT_NAME:  "[app]",               // короткое имя Mini App из BotFather
+  ADMIN_IDS:       [0],                   // ← ваш Telegram user id (число), можно несколько
+  REF_URL:         "[моя реф-ссылка]",    // sub-ID добавляется параметром
+  SUBID_PARAM:     "[sub_id]",            // имя параметра sub-ID из кабинета партнёрки
+  PAYOUT:          0.80,                  // выплата брокера → безубыточный винрейт 1/(1+PAYOUT)
+  TWELVE_DATA_KEY: "[ключ Twelve Data]",
+  DEFAULT_LANG:    "ru",
+  // ── добавлено ──
+  SUPPORT_USERNAME: "[ник_поддержки]",    // кнопка «Помощь» → t.me/<ник>, без @
+  // Ручная разблокировка: Telegram user id, которым открыты закрытые функции (админы — всегда).
+  UNLOCKED_IDS:    [],                    // например [111111111, 222222222]
+  LOCKED_FEATURES: ["ai", "stocks"],      // что закрыто: "ai", "stocks", "crypto", "forex_td" (GBP/JPY/AUD), "exp1", "exp3"
+  // settings.json рядом с index.html переопределяет REF_URL, SUBID_PARAM, SUPPORT_USERNAME
+  // и дополняет UNLOCKED_IDS — меняется на GitHub без правки кода (экран «Реф-ссылка» в админке).
+  SETTINGS_URL:    "settings.json",
+  GITHUB_REPO:     "latyson/ta-signals",                    // "логин/репозиторий" — для кнопки «Открыть settings.json на GitHub»
+  AI: {
+    ENABLED:  true,
+    // Любой совместимый /v1/chat/completions. По умолчанию — бесплатный Pollinations без ключа.
+    ENDPOINT: "https://gen.pollinations.ai/v1/chat/completions",
+    MODEL:    "openai",                   // имя модели у провайдера (в интерфейсе не показывается)
+    API_KEY:  "",                         // бесплатный publishable-ключ pk_… с enter.pollinations.ai (виден в клиенте — только pk_, не sk_!)
+    FALLBACK_ENDPOINT: "https://enter.pollinations.ai/api/generate/v1/chat/completions"
+  }
+};
+
+/* ═════════════════════ ЧИСТЫЕ ФУНКЦИИ (PURE-START) ═════════════════════
+   indicators / signal / resolve — без DOM и сети, тестируются в ?selftest=1 */
+const Indicators = {
+  ema(values, period) {
+    const out = new Array(values.length).fill(null);
+    if (values.length < period) return out;
+    let s = 0;
+    for (let i = 0; i < period; i++) s += values[i];
+    let prev = s / period; out[period - 1] = prev;
+    const k = 2 / (period + 1);
+    for (let i = period; i < values.length; i++) { prev = values[i] * k + prev * (1 - k); out[i] = prev; }
+    return out;
+  },
+  // RSI по Уайлдеру
+  rsi(closes, period = 14) {
+    const out = new Array(closes.length).fill(null);
+    if (closes.length <= period) return out;
+    let g = 0, l = 0;
+    for (let i = 1; i <= period; i++) { const d = closes[i] - closes[i - 1]; if (d > 0) g += d; else l -= d; }
+    let ag = g / period, al = l / period;
+    const calc = () => al === 0 ? (ag === 0 ? 50 : 100) : 100 - 100 / (1 + ag / al);
+    out[period] = calc();
+    for (let i = period + 1; i < closes.length; i++) {
+      const d = closes[i] - closes[i - 1];
+      ag = (ag * (period - 1) + (d > 0 ? d : 0)) / period;
+      al = (al * (period - 1) + (d < 0 ? -d : 0)) / period;
+      out[i] = calc();
+    }
+    return out;
+  },
+  // Bollinger(period, mult) по последним period закрытиям, стандартное отклонение генеральной совокупности
+  bollinger(closes, period = 20, mult = 2) {
+    if (closes.length < period) return null;
+    const w = closes.slice(-period);
+    const mid = w.reduce((a, b) => a + b, 0) / period;
+    const sd = Math.sqrt(w.reduce((a, b) => a + (b - mid) ** 2, 0) / period);
+    return { mid, upper: mid + mult * sd, lower: mid - mult * sd, sd };
+  },
+  trend(closes15, flatPct = 0.05) {
+    const e20 = Indicators.ema(closes15, 20).at(-1), e50 = Indicators.ema(closes15, 50).at(-1);
+    if (e20 == null || e50 == null) return null;
+    const diffPct = (e20 - e50) / e50 * 100;
+    return { dir: Math.abs(diffPct) < flatPct ? 'flat' : diffPct > 0 ? 'up' : 'down', e20, e50, diffPct };
+  },
+  // расстояние от цены до ближайшего максимума/минимума за lookback минут
+  levels(c1, price, lookback = 60) {
+    const w = c1.slice(-lookback);
+    const hi = Math.max(...w.map(c => c.h)), lo = Math.min(...w.map(c => c.l));
+    const dUp = hi - price, dDn = price - lo;
+    return dUp <= dDn ? { type: 'high', level: hi, dist: dUp, hi, lo } : { type: 'low', level: lo, dist: dDn, hi, lo };
+  },
+  // средний абсолютный ход |close − open| по 5-минутным окнам за lookback минут
+  move5(c1, lookback = 60, win = 5) {
+    const w = c1.slice(-lookback), m = [];
+    for (let i = 0; i + win <= w.length; i += win) m.push(Math.abs(w[i + win - 1].c - w[i].o));
+    return m.length ? m.reduce((a, b) => a + b, 0) / m.length : null;
+  }
+};
+
+const Signal = {
+  RSI_LOW: 30, RSI_HIGH: 70,
+  // c1 — закрытые 1м свечи, c15 — закрытые 15м свечи (по возрастанию времени)
+  compute(c1, c15) {
+    if (!c1 || c1.length < 60 || !c15 || c15.length < 50) return { dir: 'none', error: 'insufficient' };
+    const closes = c1.map(c => c.c), last = c1[c1.length - 1];
+    const rsi = Indicators.rsi(closes, 14).at(-1);
+    const bb = Indicators.bollinger(closes, 20, 2);
+    const trend = Indicators.trend(c15.map(c => c.c));
+    const level = Indicators.levels(c1, last.c, 60);
+    const move = Indicators.move5(c1, 60, 5);
+    const checks = {
+      up:   { bb: last.c < bb.lower, rsi: rsi < Signal.RSI_LOW,  trend: trend.dir !== 'down' },
+      down: { bb: last.c > bb.upper, rsi: rsi > Signal.RSI_HIGH, trend: trend.dir !== 'up' }
+    };
+    const all = o => o.bb && o.rsi && o.trend;
+    const dir = all(checks.up) ? 'up' : all(checks.down) ? 'down' : 'none';
+    return { dir, close: last.c, candle: last, rsi, bb, trend, level, move, checks };
+  }
+};
+
+const Resolve = {
+  outcome(dir, entry, exit) {
+    if (exit === entry) return 'refund';
+    return (dir === 'up') === (exit > entry) ? 'win' : 'loss';
+  },
+  // sig: {dir, entryT (open time свечи после сигнальной), exp (мин)}; candles — 1м свечи
+  fromCandles(sig, candles) {
+    const e = candles.find(c => c.t === sig.entryT);
+    const x = candles.find(c => c.t === sig.entryT + (sig.exp - 1) * 60000);
+    if (!e || !x) return null;
+    return { entry: e.o, exit: x.c, outcome: Resolve.outcome(sig.dir, e.o, x.c) };
+  }
+};
+
+function aggregate(c1, minutes) {
+  const step = minutes * 60000, out = [];
+  let cur = null, n = 0;
+  for (const c of c1) {
+    const b = Math.floor(c.t / step) * step;
+    if (!cur || cur.t !== b) { if (cur && n === minutes) out.push(cur); cur = { t: b, o: c.o, h: c.h, l: c.l, c: c.c }; n = 1; }
+    else { cur.h = Math.max(cur.h, c.h); cur.l = Math.min(cur.l, c.l); cur.c = c.c; n++; }
+  }
+  if (cur && n === minutes) out.push(cur);
+  return out;
+}
+
+function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function randomWalk(seed, n = 3000) {
+  const rnd = mulberry32(seed);
+  const gauss = () => { let u = 0, v = 0; while (!u) u = rnd(); while (!v) v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const out = []; let p = 100; const t0 = Date.UTC(2026, 0, 5), sig = 0.0008;
+  for (let i = 0; i < n; i++) {
+    const o = p, c = o * Math.exp(sig * gauss());
+    const h = Math.max(o, c) * (1 + Math.abs(gauss()) * sig * 0.5), l = Math.min(o, c) * (1 - Math.abs(gauss()) * sig * 0.5);
+    out.push({ t: t0 + i * 60000, o, h, l, c }); p = c;
+  }
+  return out;
+}
+
+// Бэктест без заглядывания вперёд: на шаге i функциям доступны только свечи ≤ i
+function backtest(candles, exp = 5) {
+  const c15all = aggregate(candles, 15);
+  let win = 0, loss = 0, refund = 0, signals = 0, j = 0;
+  for (let i = 800; i < candles.length - exp; i++) {
+    const endT = candles[i].t + 60000;
+    while (j < c15all.length && c15all[j].t + 900000 <= endT) j++;
+    const s = Signal.compute(candles.slice(i - 99, i + 1), c15all.slice(Math.max(0, j - 100), j));
+    if (s.dir === 'none') continue;
+    signals++;
+    const r = Resolve.fromCandles({ dir: s.dir, entryT: endT, exp }, candles.slice(i + 1, i + 1 + exp));
+    if (r.outcome === 'win') win++; else if (r.outcome === 'loss') loss++; else refund++;
+    i += exp; // следующая сделка — после экспирации
+  }
+  return { signals, win, loss, refund };
+}
+/* ═════════════════════════ PURE-END ═════════════════════════ */
+
+/* ═════════════════════════ ПЕРЕВОДЫ ═════════════════════════ */
+const I18N = {
+  ru: {
+    tagline: 'Технический анализ · сигналы', s1: 'Сигнал', s2: 'Результат', s3: 'История',
+    forex: 'Форекс', crypto: 'Крипта', stocks: 'Акции', asset: 'Актив', expiry: 'Экспирация', min: 'мин', analyze: 'Анализ',
+    open: 'рынок открыт', open247: 'круглосуточно', opensAt: 'откроется {t}',
+    stocksSession: 'Сессия США: {a}–{b} МСК, пн–пт', stocksChecking: 'Проверяем, что котировки акций в реальном времени…',
+    stocksNoRT: 'Акции скрыты: нет данных в реальном времени.', stocksLater: 'Задержка котировок проверится при открытии рынка.',
+    forexHours: 'Форекс: пн 03:00 – сб 02:59 МСК (пн–пт UTC)',
+    loading: 'Загружаем закрытые свечи…', noData: 'Нет данных, попробуйте позже', retry: 'Повторить',
+    closed: 'Рынок закрыт, сигналов нет', opensAtFull: 'Открытие: {t} МСК',
+    up: 'ВЫШЕ', down: 'НИЖЕ', none: 'НЕТ СИГНАЛА',
+    window: 'Окно входа', windowOut: 'Время на вход вышло',
+    instr: 'Откройте «{dir}» на {n} мин на {asset} (не OTC) в Pocket Option',
+    trendCard: 'Тренд · 15м', levelCard: 'До уровня', moveCard: 'Ход за 5 мин',
+    tUp: 'вверх', tDown: 'вниз', tFlat: 'флэт', toHigh: 'до макс. 60 мин', toLow: 'до мин. 60 мин', pips: 'п.', avgHour: 'средний за час',
+    reasons: 'Причины', missing: 'Не хватает для «{dir}»',
+    cBelow: 'Закрытие ниже нижней BB', cAbove: 'Закрытие выше верхней BB', cRsiLow: 'RSI < 30', cRsiHigh: 'RSI > 70',
+    cNotDown: 'Тренд 15м не «вниз»', cNotUp: 'Тренд 15м не «вверх»', now: 'сейчас',
+    close: 'Закрытие', bbLow: 'нижняя BB', bbUp: 'верхняя BB',
+    sigCandle: 'Сигнальная свеча {t} МСК', price: 'Цена',
+    where: 'Где торговать', aiBtn: '🤖 ИИ-разбор', aiLoading: 'ИИ разбирает расчёты…', aiErr: 'ИИ сейчас недоступен, попробуйте позже.',
+    aiNote: 'Комментарий ИИ поясняет расчёты и не влияет на сигнал.', aiTitle: 'ИИ-разбор',
+    aiKey: 'Админу: провайдер ИИ требует ключ — впишите бесплатный ключ в CONFIG.AI.API_KEY (см. README).',
+    toResult: 'К результату →', again: 'Новый анализ', change: '← Изменить актив',
+    disc: 'Инструмент технического анализа. Расчёт по рыночным котировкам (Binance, Twelve Data), у брокера цена может отличаться. Не является инвестиционной рекомендацией и не гарантирует результат. Торговля бинарными опционами связана с высоким риском потери средств.',
+    sendCh: '📤 Отправить в канал', copy: '📋 Копировать', copied: 'Скопировано', sendRes: '📤 Отправить результат',
+    resIn: 'Результат через', fetching: 'Получаем свечи…', win: 'ПЛЮС', loss: 'МИНУС', refund: 'ВОЗВРАТ', pending: 'ожидание', nodata: 'нет данных',
+    entry: 'Вход', exit: 'Выход', noSig: 'Пока нет сигналов. Сделайте анализ на шаге 1.',
+    rule: 'Вход = open свечи, следующей за сигнальной. Выход = close последней свечи периода экспирации.',
+    histCap: 'Статистика ваших анализов на этом устройстве', all: 'Все', today: 'Сегодня', d7: '7 дней', d30: '30 дней', ever: 'Всё время',
+    winrate: 'Винрейт без возвратов', be: 'Безубыточный винрейт', clear: 'Очистить всё',
+    clearQ: 'Удалить всю историю на этом устройстве? Отменить нельзя.', empty: 'Записей нет',
+    inCh: 'в канале', resSent: 'результат отправлен', resNotSent: 'результат не отправлен',
+    how: 'Как это работает', help: 'Помощь', day: 'Итог дня', dayCap: 'Сигналы, отправленные в канал сегодня (МСК)',
+    dayWarn: 'Сигналов без отправленного результата: {n}. Всё равно отправить итог?', daySend: 'Отправить итог в канал', dayEmpty: 'Сегодня в канал не отправлено ни одного сигнала.',
+    postSig: 'СИГНАЛ #{n}', postUntil: 'Вход до {t} МСК', postRisk: 'Инструмент теханализа, не гарантия. Риск потери средств.',
+    postDay: 'ИТОГ ДНЯ {d}', postCount: 'Сигналов: {n}', notOtc: '(не OTC)', retryRes: 'Проверить снова',
+    adminOnly: 'Админ-панель', notPosted: 'Сигнал не отправлялся в канал — результат публиковать нечего.',
+    noTg: 'Откройте приложение в Telegram для полной работы.',
+    lockTitle: '🔒 Функция закрыта', lockText: 'Доступ открывает администратор вручную. Напишите в поддержку и пришлите свой ID.',
+    yourId: 'Ваш ID', copyId: '📋 Копировать ID', lockNoTg: 'Откройте приложение в Telegram, чтобы получить ID.', unlocked: '🔓 Доступ открыт',
+    refTitle: 'Реф-ссылка', refCurrent: 'Сейчас у пользователей', refSource: 'источник', refNew: 'Новая ссылка',
+    refParamPh: 'имя параметра sub-ID', refPreview: 'Пример для sub-ID «yt01»', refBad: 'Ссылка должна начинаться с https://, параметр — латиница, цифры, _ или -.',
+    refTest: '🔎 Проверить ссылку', refCopyJson: '📋 Копировать settings.json', refGh: '✏️ Открыть settings.json на GitHub',
+    refHow: 'Как сменить у всех: скопируйте settings.json → откройте файл на GitHub → замените текст → Commit changes. Через 1–10 минут новая ссылка заработает у всех пользователей.',
+    refNoRemote: 'settings.json не найден — сейчас действует ссылка из CONFIG в index.html.', refNoRepo: 'Впишите GITHUB_REPO в CONFIG, чтобы здесь появилась кнопка открытия файла на GitHub.',
+    srcTitle: 'Ссылки под источники трафика', srcSubPh: 'sub-ID, например yt01', srcApp: 'Ссылка на приложение (для поста/ролика)', srcRef: 'Куда попадёт пользователь по «Где торговать»'
+  },
+  en: {
+    tagline: 'Technical analysis · signals', s1: 'Signal', s2: 'Result', s3: 'History',
+    forex: 'Forex', crypto: 'Crypto', stocks: 'Stocks', asset: 'Asset', expiry: 'Expiry', min: 'min', analyze: 'Analyze',
+    open: 'market open', open247: '24/7', opensAt: 'opens {t}',
+    stocksSession: 'US session: {a}–{b} MSK, Mon–Fri', stocksChecking: 'Checking that stock quotes are real-time…',
+    stocksNoRT: 'Stocks hidden: no real-time data.', stocksLater: 'Quote delay will be checked when the market opens.',
+    forexHours: 'Forex: Mon 03:00 – Sat 02:59 MSK (Mon–Fri UTC)',
+    loading: 'Loading closed candles…', noData: 'No data, try again later', retry: 'Retry',
+    closed: 'Market closed, no signals', opensAtFull: 'Opens: {t} MSK',
+    up: 'HIGHER', down: 'LOWER', none: 'NO SIGNAL',
+    window: 'Entry window', windowOut: 'Entry time is over',
+    instr: 'Open “{dir}” for {n} min on {asset} (not OTC) in Pocket Option',
+    trendCard: 'Trend · 15m', levelCard: 'To level', moveCard: '5-min move',
+    tUp: 'up', tDown: 'down', tFlat: 'flat', toHigh: 'to 60-min high', toLow: 'to 60-min low', pips: 'pips', avgHour: 'hourly average',
+    reasons: 'Reasons', missing: 'Missing for “{dir}”',
+    cBelow: 'Close below lower BB', cAbove: 'Close above upper BB', cRsiLow: 'RSI < 30', cRsiHigh: 'RSI > 70',
+    cNotDown: '15m trend not “down”', cNotUp: '15m trend not “up”', now: 'now',
+    close: 'Close', bbLow: 'lower BB', bbUp: 'upper BB',
+    sigCandle: 'Signal candle {t} MSK', price: 'Price',
+    where: 'Where to trade', aiBtn: '🤖 AI review', aiLoading: 'AI is reviewing the numbers…', aiErr: 'AI is unavailable right now, try later.',
+    aiNote: 'The AI comment explains the numbers and does not change the signal.', aiTitle: 'AI review',
+    aiKey: 'Admin: the AI provider requires a key — put a free key into CONFIG.AI.API_KEY (see README).',
+    toResult: 'To result →', again: 'New analysis', change: '← Change asset',
+    disc: 'Technical analysis tool. Calculated from market quotes (Binance, Twelve Data); the broker’s price may differ. Not investment advice and no guarantee of results. Binary options trading carries a high risk of losing money.',
+    sendCh: '📤 Send to channel', copy: '📋 Copy', copied: 'Copied', sendRes: '📤 Send result',
+    resIn: 'Result in', fetching: 'Fetching candles…', win: 'WIN', loss: 'LOSS', refund: 'REFUND', pending: 'pending', nodata: 'no data',
+    entry: 'Entry', exit: 'Exit', noSig: 'No signals yet. Run an analysis in step 1.',
+    rule: 'Entry = open of the candle after the signal candle. Exit = close of the last candle of the expiry period.',
+    histCap: 'Statistics of your analyses on this device', all: 'All', today: 'Today', d7: '7 days', d30: '30 days', ever: 'All time',
+    winrate: 'Win rate excl. refunds', be: 'Break-even win rate', clear: 'Clear all',
+    clearQ: 'Delete all history on this device? This cannot be undone.', empty: 'No records',
+    inCh: 'in channel', resSent: 'result sent', resNotSent: 'result not sent',
+    how: 'How it works', help: 'Help', day: 'Day summary', dayCap: 'Signals sent to the channel today (MSK)',
+    dayWarn: 'Signals without a sent result: {n}. Send the summary anyway?', daySend: 'Send summary to channel', dayEmpty: 'No signals were sent to the channel today.',
+    postSig: 'SIGNAL #{n}', postUntil: 'Enter before {t} MSK', postRisk: 'Technical analysis tool, not a guarantee. Risk of losing money.',
+    postDay: 'DAY SUMMARY {d}', postCount: 'Signals: {n}', notOtc: '(not OTC)', retryRes: 'Check again',
+    adminOnly: 'Admin panel', notPosted: 'This signal was not sent to the channel — no result to post.',
+    noTg: 'Open the app in Telegram for full functionality.',
+    lockTitle: '🔒 Feature locked', lockText: 'Access is granted manually by the admin. Message support and send your ID.',
+    yourId: 'Your ID', copyId: '📋 Copy ID', lockNoTg: 'Open the app in Telegram to get your ID.', unlocked: '🔓 Access granted',
+    refTitle: 'Referral link', refCurrent: 'Currently used by everyone', refSource: 'source', refNew: 'New link',
+    refParamPh: 'sub-ID parameter name', refPreview: 'Example for sub-ID “yt01”', refBad: 'Link must start with https://, parameter — latin letters, digits, _ or -.',
+    refTest: '🔎 Test link', refCopyJson: '📋 Copy settings.json', refGh: '✏️ Open settings.json on GitHub',
+    refHow: 'To change it for everyone: copy settings.json → open the file on GitHub → replace the text → Commit changes. In 1–10 minutes the new link works for all users.',
+    refNoRemote: 'settings.json not found — the link from CONFIG in index.html is used.', refNoRepo: 'Set GITHUB_REPO in CONFIG to get a button that opens the file on GitHub.',
+    srcTitle: 'Links for traffic sources', srcSubPh: 'sub-ID, e.g. yt01', srcApp: 'App link (for a post/video)', srcRef: 'Where “Where to trade” leads'
+  }
+};
+const HOW = {
+  ru: `<h3>Индикаторы</h3><ul>
+<li><b>Тренд 15м</b> — EMA(20) против EMA(50) на 15-минутных свечах. Если EMA20 выше — «вверх», ниже — «вниз»; разница меньше 0,05% — «флэт».</li>
+<li><b>RSI(14)</b> на минутных свечах: ниже 30 — рынок «перепродан», выше 70 — «перекуплен».</li>
+<li><b>Bollinger(20, 2)</b> на минутных свечах — средняя за 20 минут ± 2 стандартных отклонения.</li>
+<li><b>До уровня</b> — расстояние от цены до ближайшего максимума или минимума за последние 60 минут (в пунктах для форекса, в $ для крипты и акций).</li>
+<li><b>Ход за 5 мин</b> — насколько в среднем цена проходила за 5 минут в течение последнего часа.</li></ul>
+<h3>Условия сигнала</h3><ul>
+<li><b class="c-up">ВЫШЕ</b>: закрытие ниже нижней BB <b>и</b> RSI &lt; 30 <b>и</b> тренд 15м не «вниз».</li>
+<li><b class="c-down">НИЖЕ</b>: закрытие выше верхней BB <b>и</b> RSI &gt; 70 <b>и</b> тренд 15м не «вверх».</li>
+<li>Иначе — «НЕТ СИГНАЛА» и список недостающих условий. Расчёт детерминированный: одни и те же свечи всегда дают один и тот же ответ.</li></ul>
+<h3>Вход и результат</h3><ul>
+<li>Используются только закрытые свечи. Окно входа — 60 секунд после закрытия сигнальной свечи.</li>
+<li>Вход = цена открытия следующей свечи, выход = цена закрытия последней свечи периода экспирации.</li>
+<li>Для «ВЫШЕ»: выход выше входа — ПЛЮС, ниже — МИНУС, равно — ВОЗВРАТ (для «НИЖЕ» наоборот). Результат считается автоматически.</li>
+<li>Безубыточный винрейт = 1 / (1 + выплата). При выплате {payout}% это {be}% — ниже этого уровня торговля в минус.</li></ul>
+<h3>Источники данных</h3><ul>
+<li>EUR/USD, BTC/USD, ETH/USD — Binance (EURUSDT, BTCUSDT, ETHUSDT; курс USDT как прокси доллара).</li>
+<li>GBP/USD, USD/JPY, AUD/USD и акции — Twelve Data.</li>
+<li>Нет данных или ошибка — приложение честно пишет «Нет данных». Подставных значений нет.</li></ul>
+<h3>ИИ-разбор</h3><p>По кнопке бесплатная языковая модель получает уже посчитанные цифры и объясняет их простыми словами. Направление сигнала она не меняет и может ошибаться.</p>`,
+  en: `<h3>Indicators</h3><ul>
+<li><b>15m trend</b> — EMA(20) vs EMA(50) on 15-minute candles. EMA20 above — “up”, below — “down”; difference under 0.05% — “flat”.</li>
+<li><b>RSI(14)</b> on 1-minute candles: below 30 is “oversold”, above 70 is “overbought”.</li>
+<li><b>Bollinger(20, 2)</b> on 1-minute candles — 20-minute mean ± 2 standard deviations.</li>
+<li><b>To level</b> — distance from price to the nearest 60-minute high or low (pips for forex, $ for crypto and stocks).</li>
+<li><b>5-min move</b> — the average price move over 5-minute windows during the last hour.</li></ul>
+<h3>Signal conditions</h3><ul>
+<li><b class="c-up">HIGHER</b>: close below lower BB <b>and</b> RSI &lt; 30 <b>and</b> 15m trend not “down”.</li>
+<li><b class="c-down">LOWER</b>: close above upper BB <b>and</b> RSI &gt; 70 <b>and</b> 15m trend not “up”.</li>
+<li>Otherwise “NO SIGNAL” with the list of missing conditions. Deterministic: the same candles always give the same answer.</li></ul>
+<h3>Entry and result</h3><ul>
+<li>Only closed candles are used. Entry window is 60 seconds after the signal candle closes.</li>
+<li>Entry = open of the next candle, exit = close of the last candle of the expiry period.</li>
+<li>For “HIGHER”: exit above entry — WIN, below — LOSS, equal — REFUND (reverse for “LOWER”). Calculated automatically.</li>
+<li>Break-even win rate = 1 / (1 + payout). At {payout}% payout it is {be}% — below that you lose money.</li></ul>
+<h3>Data sources</h3><ul>
+<li>EUR/USD, BTC/USD, ETH/USD — Binance (EURUSDT, BTCUSDT, ETHUSDT; USDT as a dollar proxy).</li>
+<li>GBP/USD, USD/JPY, AUD/USD and stocks — Twelve Data.</li>
+<li>On error or missing data the app says “No data”. No fake values.</li></ul>
+<h3>AI review</h3><p>On tap, a free language model receives the already calculated numbers and explains them in plain words. It does not change the signal direction and can be wrong.</p>`
+};
+
+/* ═════════════════════════ АКТИВЫ ═════════════════════════ */
+const ASSETS = [
+  { id: 'EURUSD', name: 'EUR/USD', cls: 'forex', src: 'binance', sym: 'EURUSDT', pip: 0.0001, dec: 5 },
+  { id: 'GBPUSD', name: 'GBP/USD', cls: 'forex', src: 'td', sym: 'GBP/USD', pip: 0.0001, dec: 5 },
+  { id: 'USDJPY', name: 'USD/JPY', cls: 'forex', src: 'td', sym: 'USD/JPY', pip: 0.01, dec: 3 },
+  { id: 'AUDUSD', name: 'AUD/USD', cls: 'forex', src: 'td', sym: 'AUD/USD', pip: 0.0001, dec: 5 },
+  { id: 'BTCUSD', name: 'BTC/USD', cls: 'crypto', src: 'binance', sym: 'BTCUSDT', dec: 2 },
+  { id: 'ETHUSD', name: 'ETH/USD', cls: 'crypto', src: 'binance', sym: 'ETHUSDT', dec: 2 },
+  ...['AAPL', 'TSLA', 'AMZN', 'MSFT', 'NVDA', 'META', 'GOOGL'].map(s => ({ id: s, name: s, cls: 'stocks', src: 'td', sym: s, dec: 2 }))
+];
+const ASSET = Object.fromEntries(ASSETS.map(a => [a.id, a]));
+
+/* ═════════════════════════ ВРЕМЯ И РЫНКИ ═════════════════════════ */
+const nyFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+function nyParts(d) {
+  const p = Object.fromEntries(nyFmt.formatToParts(d).map(x => [x.type, x.value]));
+  return { wd: p.weekday, mins: (+p.hour % 24) * 60 + +p.minute };
+}
+function isOpen(cls, d = new Date()) {
+  if (cls === 'crypto') return true;
+  if (cls === 'forex') { const w = d.getUTCDay(); return w >= 1 && w <= 5; }
+  const p = nyParts(d);
+  return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(p.wd) && p.mins >= 570 && p.mins < 960;
+}
+function nextOpen(cls, from = new Date()) {
+  let t = Math.ceil(from.getTime() / 900000) * 900000;
+  for (let i = 0; i < 96 * 8; i++, t += 900000) if (isOpen(cls, new Date(t))) return new Date(t);
+  return null;
+}
+function stockSession(now = new Date()) {
+  let start;
+  if (isOpen('stocks', now)) { let t = Math.floor(now.getTime() / 900000) * 900000; while (isOpen('stocks', new Date(t - 900000))) t -= 900000; start = new Date(t); }
+  else start = nextOpen('stocks', now);
+  return start ? { start, end: new Date(start.getTime() + 390 * 60000) } : null;
+}
+const loc = () => S.lang === 'ru' ? 'ru-RU' : 'en-GB';
+const fmtMsk = (d, o) => new Intl.DateTimeFormat(loc(), { timeZone: 'Europe/Moscow', hourCycle: 'h23', ...o }).format(d);
+const hm = d => fmtMsk(d, { hour: '2-digit', minute: '2-digit' });
+const hms = d => fmtMsk(d, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+const dayHm = d => fmtMsk(d, { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+const mskDayKey = d => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Moscow' }).format(d);
+const mmss = ms => { const s = Math.max(0, Math.ceil(ms / 1000)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+
+/* ═════════════════════════ ДАННЫЕ ═════════════════════════ */
+const BINANCE = ['https://data-api.binance.vision', 'https://api.binance.com'];
+const cache = new Map();
+const tdLog = [];
+const tdKeyOk = () => CONFIG.TWELVE_DATA_KEY && !CONFIG.TWELVE_DATA_KEY.startsWith('[');
+
+async function fetchJSON(url, ms = 10000) {
+  const ac = new AbortController(); const tm = setTimeout(() => ac.abort(), ms);
+  try { const r = await fetch(url, { signal: ac.signal }); if (!r.ok) throw new Error('http ' + r.status); return await r.json(); }
+  finally { clearTimeout(tm); }
+}
+async function binanceKlines(sym, interval, extra = {}) {
+  const q = new URLSearchParams({ symbol: sym, interval, limit: '100', ...extra });
+  let err;
+  for (const base of BINANCE) {
+    try {
+      const d = await fetchJSON(`${base}/api/v3/klines?${q}`);
+      if (!Array.isArray(d)) throw new Error('bad');
+      const now = Date.now();
+      return d.map(k => ({ t: k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], ct: k[6] + 1 })).filter(c => c.ct <= now);
+    } catch (e) { err = e; }
+  }
+  throw err;
+}
+function tdAllow() {
+  const now = Date.now();
+  while (tdLog.length && now - tdLog[0] > 60000) tdLog.shift();
+  if (tdLog.length >= 8) return false;
+  tdLog.push(now); return true;
+}
+const parseUTC = s => { const [d, t = '00:00:00'] = s.split(' '); const [Y, M, D] = d.split('-').map(Number); const [h, m, x] = t.split(':').map(Number); return Date.UTC(Y, M - 1, D, h, m, x || 0); };
+const fmtUTC = ms => new Date(ms).toISOString().slice(0, 19).replace('T', ' ');
+async function tdSeries(sym, interval, extra = {}) {
+  if (!tdKeyOk()) throw new Error('nokey');
+  if (!tdAllow()) throw new Error('rate');
+  const q = new URLSearchParams({ symbol: sym, interval, outputsize: '100', timezone: 'UTC', apikey: CONFIG.TWELVE_DATA_KEY, ...extra });
+  const d = await fetchJSON('https://api.twelvedata.com/time_series?' + q);
+  if (d.status === 'error' || !Array.isArray(d.values)) throw new Error(d.message || 'td');
+  const step = interval === '1min' ? 60000 : 900000, now = Date.now();
+  return d.values.map(v => ({ t: parseUTC(v.datetime), o: +v.open, h: +v.high, l: +v.low, c: +v.close }))
+    .filter(c => c.t + step <= now && isFinite(c.c)).sort((a, b) => a.t - b.t);
+}
+// tf: '1m' | '15m'. Кэш: Twelve Data 60 с (лимит 8 запр./мин), Binance 5 с.
+async function getCandles(asset, tf) {
+  const key = asset.id + tf, ttl = asset.src === 'td' ? 60000 : 5000, hit = cache.get(key);
+  if (hit && Date.now() - hit.ts < ttl) return hit.data;
+  const data = asset.src === 'binance' ? await binanceKlines(asset.sym, tf) : await tdSeries(asset.sym, tf === '1m' ? '1min' : '15min');
+  cache.set(key, { ts: Date.now(), data });
+  return data;
+}
+// свечи периода экспирации для подсчёта результата
+async function getRange(asset, startT, n) {
+  if (asset.src === 'binance') return binanceKlines(asset.sym, '1m', { startTime: String(startT), limit: String(n) });
+  return tdSeries(asset.sym, '1min', { start_date: fmtUTC(startT), end_date: fmtUTC(startT + n * 60000), outputsize: String(n + 5) });
+}
+
+/* ═════════════════════════ ХРАНИЛИЩЕ ═════════════════════════ */
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { } }
+};
+const Store = {
+  KEY: 'ta_history_v1',
+  all() { return LS.get(this.KEY, []); },
+  add(r) { const l = this.all(); l.push(r); LS.set(this.KEY, l); },
+  patch(id, f) { const l = this.all(); const r = l.find(x => x.id === id); if (r) { Object.assign(r, f); LS.set(this.KEY, l); } return r; },
+  get(id) { return this.all().find(x => x.id === id); },
+  clear() { LS.set(this.KEY, []); },
+  nextNo() { const n = LS.get('ta_counter', 0) + 1; LS.set('ta_counter', n); return n; }
+};
+
+/* ═════════════════════════ TELEGRAM ═════════════════════════ */
+const tg = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData !== undefined ? window.Telegram.WebApp : null;
+const tgUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
+const isRealAdmin = !!(tgUser && CONFIG.ADMIN_IDS.includes(tgUser.id));
+const isAdmin = isRealAdmin || new URLSearchParams(location.search).has('admin_preview'); // admin_preview — только показ кнопок
+const subId = (() => { const p = tg && tg.initDataUnsafe && tg.initDataUnsafe.start_param; return p && /^[A-Za-z0-9_-]{1,64}$/.test(p) ? p : 'direct'; })();
+/* ── ручная разблокировка (скрытие функций, не защита: список виден в коде) ── */
+const isUnlocked = () => isRealAdmin || !!(tgUser && cfg('UNLOCKED_IDS').includes(tgUser.id));
+
+/* ── settings.json: реф-ссылка, поддержка, список доступа без правки кода ── */
+const REMOTE = { loaded: false, data: {} };
+async function loadSettings() {
+  if (!CONFIG.SETTINGS_URL) return;
+  try {
+    const u = CONFIG.SETTINGS_URL + (CONFIG.SETTINGS_URL.includes('?') ? '&' : '?') + 'v=' + Math.floor(Date.now() / 60000);
+    const r = await fetch(u, { cache: 'no-store' });
+    if (r.ok) { const d = await r.json(); if (d && typeof d === 'object' && !Array.isArray(d)) { REMOTE.data = d; REMOTE.loaded = true; } }
+  } catch { }
+  render();
+}
+// значение из settings.json, если оно задано и корректно, иначе из CONFIG
+function cfg(k) {
+  const v = REMOTE.data[k];
+  if (k === 'UNLOCKED_IDS') return [...CONFIG.UNLOCKED_IDS, ...(Array.isArray(v) ? v.map(Number).filter(Number.isFinite) : [])];
+  return typeof v === 'string' && v.trim() ? v.trim() : CONFIG[k];
+}
+const cfgSource = k => typeof REMOTE.data[k] === 'string' && REMOTE.data[k].trim() ? 'settings.json' : 'CONFIG';
+const isLocked = f => CONFIG.LOCKED_FEATURES.includes(f) && !isUnlocked();
+const assetLocked = a => isLocked(a.cls) || (a.cls === 'forex' && a.src === 'td' && isLocked('forex_td'));
+const supportLink = () => 'https://t.me/' + cfg('SUPPORT_USERNAME').replace(/^@/, '');
+function openExternal(url) { if (tg && tg.openLink) tg.openLink(url); else window.open(url, '_blank', 'noopener'); }
+function openTg(url) { if (tg && tg.openTelegramLink) tg.openTelegramLink(url); else window.open(url, '_blank', 'noopener'); }
+function haptic(type) { try { tg && tg.HapticFeedback && tg.HapticFeedback.notificationOccurred(type); } catch { } }
+function confirmBox(text) {
+  return new Promise(res => {
+    if (tg && tg.isVersionAtLeast && tg.isVersionAtLeast('6.2')) tg.showConfirm(text, ok => res(!!ok));
+    else res(window.confirm(text));
+  });
+}
+function applyTheme() {
+  if (!tg) return;
+  tg.ready(); tg.expand();
+  const p = tg.themeParams || {}, r = document.documentElement.style;
+  if (p.button_color) r.setProperty('--accent', p.button_color);
+  if (p.button_text_color) r.setProperty('--accent-text', p.button_text_color);
+  if (tg.colorScheme === 'dark' && p.bg_color) r.setProperty('--bg', p.bg_color);
+  if (tg.colorScheme === 'dark' && p.hint_color) r.setProperty('--muted', p.hint_color);
+  try { tg.setHeaderColor(getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()); tg.setBackgroundColor(getComputedStyle(document.documentElement).getPropertyValue('--bg').trim()); } catch { }
+  if (tg.BackButton) tg.BackButton.onClick(goBack);
+}
+
+/* ═════════════════════════ СОСТОЯНИЕ И УТИЛИТЫ ═════════════════════════ */
+const S = {
+  lang: LS.get('ta_lang', CONFIG.DEFAULT_LANG) === 'en' ? 'en' : 'ru',
+  screen: 'select', cls: 'forex', assetId: 'EURUSD', exp: 5,
+  an: null, currentId: null, hf: { cls: 'all', period: 'd7' },
+  stockRT: 'unknown', ai: {}
+};
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function t(k, v = {}) { let s = (I18N[S.lang][k] ?? I18N.ru[k] ?? k); for (const [a, b] of Object.entries(v)) s = s.split('{' + a + '}').join(b); return s; }
+const fp = (a, v) => v == null ? '—' : (+v).toFixed(a.dec);
+const fdist = (a, v) => v == null ? '—' : a.cls === 'forex' ? (v / a.pip).toFixed(1) + ' ' + t('pips') : '$' + v.toFixed(2);
+const trendTxt = d => ({ up: '▲ ' + t('tUp'), down: '▼ ' + t('tDown'), flat: '◆ ' + t('tFlat') }[d]);
+const trendCls = d => ({ up: 'c-up', down: 'c-down', flat: 'c-none' }[d]);
+const beRate = () => 1 / (1 + CONFIG.PAYOUT);
+function toast(msg) { const el = $('#toast'); el.textContent = msg; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 1600); }
+async function copyText(s) {
+  try { await navigator.clipboard.writeText(s); }
+  catch { const ta = document.createElement('textarea'); ta.value = s; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); } catch { } ta.remove(); }
+  toast(t('copied'));
+}
+const appLink = sp => `https://t.me/${CONFIG.BOT_USERNAME}/${CONFIG.APP_SHORT_NAME}?startapp=${sp}`;
+function shareToChannel(text) { openTg('https://t.me/share/url?url=' + encodeURIComponent(appLink('channel')) + '&text=' + encodeURIComponent(text)); }
+function buildRef(url, param, sub) { return url + (url.includes('?') ? '&' : '?') + encodeURIComponent(param) + '=' + encodeURIComponent(sub); }
+function refLink() { return buildRef(cfg('REF_URL'), cfg('SUBID_PARAM'), subId); }
+
+/* ═════════════════════════ АНАЛИЗ ═════════════════════════ */
+async function runAnalysis() {
+  const a = ASSET[S.assetId], exp = S.exp;
+  if (assetLocked(a) || isLocked('exp' + exp)) { S.screen = 'select'; return render(); }
+  S.screen = 'signal'; S.an = { status: 'loading', assetId: a.id, exp }; render();
+  if (!isOpen(a.cls)) { S.an = { status: 'closed', assetId: a.id, exp, opens: nextOpen(a.cls) }; return render(); }
+  try {
+    const [c1, c15] = await Promise.all([getCandles(a, '1m'), getCandles(a, '15m')]);
+    const last = c1.at(-1), maxLag = a.src === 'td' ? 240000 : 150000;
+    if (!last || last.t + 60000 < Date.now() - maxLag) throw new Error('stale');
+    const r = Signal.compute(c1, c15);
+    if (r.error) throw new Error(r.error);
+    const sigClose = r.candle.t + 60000;
+    const an = { status: 'ok', assetId: a.id, exp, r, sigClose, deadline: sigClose + 60000, key: a.id + sigClose + exp };
+    if (r.dir !== 'none') {
+      const id = Store.nextNo();
+      Store.add({
+        id, ts: Date.now(), assetId: a.id, name: a.name, cls: a.cls, dir: r.dir, exp,
+        sigClose, entryT: sigClose, deadline: sigClose + 60000,
+        close: r.close, rsi: r.rsi, trend: r.trend.dir, trendPct: r.trend.diffPct, level: r.level, move: r.move,
+        status: 'pending', entry: null, exit: null, posted: false, resultPosted: false
+      });
+      an.id = id; S.currentId = id; haptic('success');
+    }
+    S.an = an;
+  } catch (e) {
+    S.an = { status: 'nodata', assetId: a.id, exp };
+  }
+  render();
+}
+
+let resolving = false;
+async function resolvePending(force) {
+  if (resolving) return; resolving = true;
+  let changed = false;
+  try {
+    const now = Date.now();
+    for (const r of Store.all()) {
+      if (r.status !== 'pending') continue;
+      const due = r.entryT + r.exp * 60000;
+      if (now < due + 3000 || (!force && r.nextTry && now < r.nextTry)) continue;
+      const a = ASSET[r.assetId];
+      try {
+        const res = Resolve.fromCandles(r, await getRange(a, r.entryT, r.exp));
+        if (res) { Store.patch(r.id, { status: res.outcome, entry: res.entry, exit: res.exit, resolvedAt: Date.now() }); changed = true; if (r.id === S.currentId) haptic(res.outcome === 'win' ? 'success' : 'warning'); }
+        else Store.patch(r.id, now - due > 6 * 3600e3 ? { status: 'nodata' } : { nextTry: now + 15000 });
+      } catch (e) {
+        Store.patch(r.id, now - due > 6 * 3600e3 ? { status: 'nodata' } : { nextTry: now + (e.message === 'rate' ? 45000 : 15000) });
+      }
+      changed = true;
+      if (a.src === 'td') break; // бережём лимит Twelve Data
+    }
+  } finally { resolving = false; }
+  if (changed && ['result', 'history', 'day'].includes(S.screen)) render();
+}
+
+async function checkStocksRealtime() {
+  if (isLocked('stocks')) return; // не тратим лимит Twelve Data, пока акции закрыты
+  if (!isOpen('stocks')) { S.stockRT = 'unknown'; return; }
+  const c = LS.get('ta_stock_rt', null);
+  if (c && Date.now() - c.ts < 15 * 60000) { S.stockRT = c.v; return; }
+  S.stockRT = 'checking'; if (S.screen === 'select') render();
+  let v = 'delayed';
+  try {
+    const d = await tdSeries('AAPL', '1min', { outputsize: '3' });
+    const last = d.at(-1);
+    if (last && Date.now() - (last.t + 60000) <= 3 * 60000) v = 'ok';
+  } catch (e) { if (e.message === 'rate') { S.stockRT = 'unknown'; return; } }
+  S.stockRT = v; LS.set('ta_stock_rt', { ts: Date.now(), v });
+  if (S.screen === 'select') render();
+}
+
+/* ═════════════════════════ ИИ-РАЗБОР ═════════════════════════ */
+async function aiExplain() {
+  const an = S.an; if (!an || an.status !== 'ok' || isLocked('ai')) return;
+  const a = ASSET[an.assetId], r = an.r, key = an.key;
+  S.ai[key] = { loading: true }; render();
+  const facts = {
+    asset: a.name, expiry_min: an.exp, signal: { up: 'HIGHER', down: 'LOWER', none: 'NO SIGNAL' }[r.dir],
+    close: fp(a, r.close), rsi14: r.rsi.toFixed(1), bb_lower: fp(a, r.bb.lower), bb_mid: fp(a, r.bb.mid), bb_upper: fp(a, r.bb.upper),
+    trend_15m: r.trend.dir, ema20_vs_ema50_pct: r.trend.diffPct.toFixed(3),
+    nearest_level: r.level.type === 'high' ? '60m high' : '60m low', distance_to_level: fdist(a, r.level.dist),
+    avg_5min_move: fdist(a, r.move), conditions: r.checks,
+    rules: 'HIGHER = close<lowerBB & RSI<30 & trend!=down; LOWER = close>upperBB & RSI>70 & trend!=up'
+  };
+  const sys = S.lang === 'ru'
+    ? 'Ты помощник по техническому анализу. Объясни простым русским языком в 4–6 коротких предложениях, что показывают эти расчётные значения: RSI, полосы Боллинджера, тренд 15м, расстояние до уровня и средний ход. Не меняй и не оспаривай направление сигнала, не давай гарантий и обещаний прибыли, не советуй размер ставки. Если расстояние до уровня меньше среднего хода за 5 минут — отметь это как риск. Закончи напоминанием о риске потери средств. Без markdown.'
+    : 'You are a technical analysis assistant. In 4–6 short plain-English sentences explain what these calculated values show: RSI, Bollinger Bands, 15m trend, distance to level and average move. Do not change or dispute the signal direction, give no guarantees or profit promises, no position sizing advice. If the distance to level is less than the average 5-min move, flag it as a risk. End with a reminder about the risk of losing money. No markdown.';
+  const user = JSON.stringify(facts);
+  let text = '', needKey = false;
+  const headers = { 'Content-Type': 'application/json' };
+  if (CONFIG.AI.API_KEY) headers.Authorization = 'Bearer ' + CONFIG.AI.API_KEY;
+  const body = JSON.stringify({ model: CONFIG.AI.MODEL, messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] });
+  for (const url of [CONFIG.AI.ENDPOINT, CONFIG.AI.FALLBACK_ENDPOINT].filter(Boolean)) {
+    try {
+      const ac = new AbortController(); setTimeout(() => ac.abort(), 30000);
+      const res = await fetch(url, { method: 'POST', headers, signal: ac.signal, body });
+      if (res.status === 401 || res.status === 402) needKey = true;
+      if (!res.ok) continue;
+      const j = await res.json();
+      text = j.choices?.[0]?.message?.content || '';
+      if (text) break;
+    } catch { }
+  }
+  text = (text || '').replace(/[*#`]/g, '').trim().slice(0, 1500);
+  S.ai[key] = text ? { text } : { error: true, needKey };
+  if (S.an && S.an.key === key) render();
+}
+
+/* ═════════════════════════ ТЕКСТЫ ПОСТОВ ═════════════════════════ */
+function postSignalText(r) {
+  const a = ASSET[r.assetId];
+  return [
+    t('postSig', { n: r.id }),
+    `${a.name} ${t('notOtc')} · ${t(r.dir)} · ${r.exp} ${t('min')}`,
+    t('postUntil', { t: hms(new Date(r.deadline)) }),
+    `${t('trendCard').replace(' · ', ' ')}: ${t({ up: 'tUp', down: 'tDown', flat: 'tFlat' }[r.trend])} · ${t('levelCard')}: ${fdist(a, r.level.dist)} · ${t('moveCard')}: ${fdist(a, r.move)}`,
+    t('postRisk')
+  ].join('\n');
+}
+function postResultText(r) {
+  const a = ASSET[r.assetId], mark = { win: ' ✅', loss: ' ❌', refund: ' ↩' }[r.status];
+  return `#${r.id} — ${t(r.status)}${mark}\n${t('entry')} ${fp(a, r.entry)} → ${t('exit').toLowerCase()} ${fp(a, r.exit)}`;
+}
+function statsOf(list) {
+  const w = list.filter(r => r.status === 'win').length, l = list.filter(r => r.status === 'loss').length, f = list.filter(r => r.status === 'refund').length;
+  return { w, l, f, wr: w + l ? w / (w + l) : null };
+}
+const pct = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
+
+/* ═════════════════════════ ЭКРАНЫ ═════════════════════════ */
+function renderSteps() {
+  const st = { select: 1, signal: 1, result: 2, history: 3 }[S.screen] || 0;
+  $('#steps').innerHTML = [['select', 1, 's1'], ['result', 2, 's2'], ['history', 3, 's3']].map(([sc, n, k], i) =>
+    (i ? '<span class="arrow">→</span>' : '') + `<button class="step ${st === n ? 'on' : ''}" data-go="${sc}"><i>${n}</i>${t(k)}</button>`).join('');
+}
+function renderFoot() {
+  $('#foot').innerHTML = `<button data-go="how">${t('how')}</button><button data-act="help">💬 ${t('help')}</button>` + (isAdmin ? `<button data-go="day">📊 ${t('day')}</button><button data-go="ref">🔗 ${t('refTitle')}</button>` : '');
+}
+
+function lockCard() {
+  return `<div class="center"><p style="font-size:17px;font-weight:700;margin:4px 0 6px">${t('lockTitle')}</p><p class="note">${t('lockText')}</p>
+    ${tgUser ? `<p style="margin:8px 0">${t('yourId')}: <b>${tgUser.id}</b></p><div class="row"><button class="btn ghost sm" data-act="copyid">${t('copyId')}</button><button class="btn sm" data-act="help">💬 ${t('help')}</button></div>`
+      : `<p class="note warn">${t('lockNoTg')}</p><button class="btn sm" data-act="help">💬 ${t('help')}</button>`}</div>`;
+}
+
+function vSelect() {
+  const assets = ASSETS.filter(a => a.cls === S.cls);
+  let list = '';
+  if (isLocked(S.cls)) list = lockCard();
+  else if (S.cls === 'stocks' && S.stockRT === 'checking') list = `<div class="spin"></div><p class="note center">${t('stocksChecking')}</p>`;
+  else if (S.cls === 'stocks' && S.stockRT === 'delayed') list = `<p class="warn">⚠ ${t('stocksNoRT')}</p>`;
+  else list = `<div class="grid">` + assets.map(a => {
+    const o = isOpen(a.cls), no = o ? null : nextOpen(a.cls), lk = assetLocked(a);
+    return `<button class="asset ${S.assetId === a.id ? 'on' : ''}" data-asset="${a.id}" ${o && !lk ? '' : 'disabled'}><b>${lk ? '🔒 ' : ''}${a.name}</b><small><span class="dot ${o ? 'g' : 'r'}"></span>${o ? (a.cls === 'crypto' ? t('open247') : t('open')) : t('opensAt', { t: no ? dayHm(no) : '—' })}</small></button>`;
+  }).join('') + `</div>` + (assets.some(assetLocked) ? `<div class="card mt" style="margin-bottom:0">${lockCard()}</div>` : '');
+  let hours = '';
+  if (S.cls === 'stocks') { const ss = stockSession(); hours = ss ? t('stocksSession', { a: hm(ss.start), b: hm(ss.end) }) : ''; if (S.stockRT === 'unknown' && !isOpen('stocks')) hours += '<br>' + t('stocksLater'); }
+  if (S.cls === 'forex') hours = t('forexHours');
+  const sel = ASSET[S.assetId], canGo = sel && sel.cls === S.cls && isOpen(sel.cls) && !assetLocked(sel) && !isLocked('exp' + S.exp) && !(S.cls === 'stocks' && S.stockRT !== 'ok');
+  return `
+  <div class="card"><div class="seg">${['forex', 'crypto', 'stocks'].map(c => `<button class="${S.cls === c ? 'on' : ''}" data-cls="${c}">${isLocked(c) ? '🔒 ' : ''}${t(c)}</button>`).join('')}</div></div>
+  <div class="card"><div class="label">${t('asset')}</div>${list}${hours ? `<p class="note mt">${hours}</p>` : ''}</div>
+  <div class="card"><div class="label">${t('expiry')}</div><div class="seg">${[1, 3, 5].map(n => `<button class="${S.exp === n ? 'on' : ''}" data-exp="${n}" ${isLocked('exp' + n) ? 'disabled' : ''}>${isLocked('exp' + n) ? '🔒 ' : ''}${n} ${t('min')}</button>`).join('')}</div></div>
+  <button class="btn" data-act="analyze" ${canGo ? '' : 'disabled'}>${t('analyze')}</button>
+  ${tg ? '' : `<p class="note center mt">${t('noTg')}</p>`}`;
+}
+
+function checksHtml(r, a, side) {
+  const c = r.checks[side], tr = t({ up: 'tUp', down: 'tDown', flat: 'tFlat' }[r.trend.dir]);
+  const rows = side === 'up'
+    ? [[c.bb, t('cBelow'), `${t('close')} ${fp(a, r.close)} · ${t('bbLow')} ${fp(a, r.bb.lower)}`], [c.rsi, t('cRsiLow'), `RSI ${r.rsi.toFixed(1)}`], [c.trend, t('cNotDown'), `${t('now')}: ${tr}`]]
+    : [[c.bb, t('cAbove'), `${t('close')} ${fp(a, r.close)} · ${t('bbUp')} ${fp(a, r.bb.upper)}`], [c.rsi, t('cRsiHigh'), `RSI ${r.rsi.toFixed(1)}`], [c.trend, t('cNotUp'), `${t('now')}: ${tr}`]];
+  return `<ul class="checks">${rows.map(([ok, l, v]) => `<li><span class="${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'}</span><span>${l} <small>— ${v}</small></span></li>`).join('')}</ul>`;
+}
+
+function vSignal() {
+  const an = S.an; if (!an) { S.screen = 'select'; return vSelect(); }
+  const a = ASSET[an.assetId];
+  const back = `<button class="btn ghost sm" data-go="select" style="margin-bottom:12px">${t('change')}</button>`;
+  if (an.status === 'loading') return back + `<div class="card center"><div class="spin"></div><p class="note">${t('loading')}</p></div>`;
+  if (an.status === 'nodata') return back + `<div class="card center"><p style="font-size:18px;font-weight:700">${t('noData')}</p><p class="note">${a.name}</p><button class="btn mt" data-act="analyze">${t('retry')}</button></div>`;
+  if (an.status === 'closed') return back + `<div class="card center"><p style="font-size:18px;font-weight:700">${t('closed')}</p><p class="note">${a.name} · ${t('opensAtFull', { t: an.opens ? dayHm(an.opens) : '—' })}</p></div>`;
+  const r = an.r, d = r.dir, rec = an.id ? Store.get(an.id) : null;
+  const dirWord = d === 'none' ? '' : t(d);
+  let reasons;
+  if (d !== 'none') {
+    reasons = d === 'up'
+      ? [`${t('close')} ${fp(a, r.close)} < ${t('bbLow')} ${fp(a, r.bb.lower)}`, `RSI ${r.rsi.toFixed(1)} < 30`, `${t('trendCard')}: ${t({ up: 'tUp', down: 'tDown', flat: 'tFlat' }[r.trend.dir])}`]
+      : [`${t('close')} ${fp(a, r.close)} > ${t('bbUp')} ${fp(a, r.bb.upper)}`, `RSI ${r.rsi.toFixed(1)} > 70`, `${t('trendCard')}: ${t({ up: 'tUp', down: 'tDown', flat: 'tFlat' }[r.trend.dir])}`];
+  }
+  const ai = S.ai[an.key];
+  const aiBlock = !CONFIG.AI.ENABLED ? '' : `<div class="card"><div class="label">${t('aiTitle')}</div>${isLocked('ai') ? lockCard() : ai ? (ai.loading ? `<div class="spin"></div><p class="note center">${t('aiLoading')}</p>` : ai.error ? `<p class="warn">${t('aiErr')}</p>${ai.needKey && isAdmin ? `<p class="note">${t('aiKey')}</p>` : ''}<button class="btn ghost sm" data-act="ai">${t('retry')}</button>` : `<div class="ai">${esc(ai.text)}</div><p class="note mt">${t('aiNote')}</p>`) : `<button class="btn ghost sm" data-act="ai">${t('aiBtn')}</button>`}</div>`;
+  return back + `
+  <div class="dir ${d}">
+    <div class="note">${a.name} · ${an.exp} ${t('min')} · ${t('sigCandle', { t: hm(new Date(an.sigClose - 60000)) })}</div>
+    <div class="big">${d === 'up' ? '▲ ' : d === 'down' ? '▼ ' : ''}${t(d)}</div>
+    ${d !== 'none' ? `<div class="timer" data-deadline="${an.deadline}"></div>` : ''}
+    ${d !== 'none' ? `<div class="sub" style="color:var(--text);font-size:14px">${esc(t('instr', { dir: dirWord, n: an.exp, asset: a.name }))}</div>` : `<div class="sub">${t('price')} ${fp(a, r.close)} · RSI ${r.rsi.toFixed(1)}</div>`}
+  </div>
+  <div class="metrics">
+    <div class="metric"><div class="k">${t('trendCard')}</div><div class="v ${trendCls(r.trend.dir)}">${trendTxt(r.trend.dir)}</div><div class="s">EMA20/50 ${r.trend.diffPct >= 0 ? '+' : ''}${r.trend.diffPct.toFixed(3)}%</div></div>
+    <div class="metric"><div class="k">${t('levelCard')}</div><div class="v">${fdist(a, r.level.dist)}</div><div class="s">${t(r.level.type === 'high' ? 'toHigh' : 'toLow')} ${fp(a, r.level.level)}</div></div>
+    <div class="metric"><div class="k">${t('moveCard')}</div><div class="v">${fdist(a, r.move)}</div><div class="s">${t('avgHour')}</div></div>
+  </div>
+  <div class="card">
+    ${d !== 'none' ? `<div class="label">${t('reasons')}</div><p style="margin:0">${reasons.map(esc).join(' · ')}</p>`
+      : `<div class="label">${t('missing', { dir: t('up') })}</div>${checksHtml(r, a, 'up')}<div class="label mt">${t('missing', { dir: t('down') })}</div>${checksHtml(r, a, 'down')}`}
+    <p class="note mt" style="margin-bottom:0">BB ${fp(a, r.bb.lower)} / ${fp(a, r.bb.mid)} / ${fp(a, r.bb.upper)} · RSI(14) ${r.rsi.toFixed(1)}</p>
+  </div>
+  ${isAdmin && rec ? `<div class="card"><div class="label">${t('adminOnly')} · #${rec.id}</div><div class="row"><button class="btn sm" data-act="post" data-id="${rec.id}">${t('sendCh')}</button><button class="btn ghost sm" data-act="copy" data-id="${rec.id}">${t('copy')}</button></div>${rec.posted ? `<p class="note mt" style="margin-bottom:0">✓ ${t('inCh')}</p>` : ''}</div>` : ''}
+  ${aiBlock}
+  <div class="row">${d !== 'none' ? `<button class="btn" data-go="result">${t('toResult')}</button>` : `<button class="btn" data-act="analyze">${t('again')}</button>`}</div>
+  <button class="btn ghost mt" data-act="ref">${t('where')}</button>
+  <div class="disc">${t('disc')}</div>`;
+}
+
+function vResult() {
+  const r = S.currentId ? Store.get(S.currentId) : Store.all().at(-1);
+  if (!r) return `<div class="card center"><p>${t('noSig')}</p><button class="btn" data-go="select">${t('s1')}</button></div>`;
+  const a = ASSET[r.assetId], due = r.entryT + r.exp * 60000;
+  let body;
+  if (r.status === 'pending') {
+    body = Date.now() < due
+      ? `<div class="label">${t('resIn')}</div><div class="timer" style="font-size:28px" data-due="${due}"></div>`
+      : `<div class="spin"></div><p class="note">${t('fetching')}</p><button class="btn ghost sm" data-act="resolve">${t('retryRes')}</button>`;
+  } else if (r.status === 'nodata') {
+    body = `<div class="big c-none" style="font-size:28px;font-weight:800">${t('noData')}</div>`;
+  } else {
+    const c = { win: 'c-up', loss: 'c-down', refund: 'c-none' }[r.status];
+    body = `<div class="big ${c}" style="font-size:40px;font-weight:800">${t(r.status)}</div>
+      <div class="metrics" style="margin:14px 0 0;grid-template-columns:1fr 1fr">
+        <div class="metric"><div class="k">${t('entry')} · ${hm(new Date(r.entryT))}</div><div class="v">${fp(a, r.entry)}</div></div>
+        <div class="metric"><div class="k">${t('exit')} · ${hm(new Date(due))}</div><div class="v">${fp(a, r.exit)}</div></div></div>`;
+  }
+  const admin = isAdmin ? `<div class="card"><div class="label">${t('adminOnly')} · #${r.id}</div>${['win', 'loss', 'refund'].includes(r.status)
+    ? (r.posted ? `<div class="row"><button class="btn sm" data-act="postres" data-id="${r.id}">${t('sendRes')}</button><button class="btn ghost sm" data-act="copyres" data-id="${r.id}">${t('copy')}</button></div><p class="note mt" style="margin-bottom:0">${r.resultPosted ? '✓ ' + t('resSent') : t('resNotSent')}</p>` : `<p class="note" style="margin:0">${t('notPosted')}</p>`)
+    : (r.posted ? '' : `<div class="row"><button class="btn sm" data-act="post" data-id="${r.id}">${t('sendCh')}</button><button class="btn ghost sm" data-act="copy" data-id="${r.id}">${t('copy')}</button></div>`)}</div>` : '';
+  return `
+  <div class="dir ${r.dir}"><div class="note">#${r.id} · ${a.name} · ${r.exp} ${t('min')} · ${hm(new Date(r.sigClose))}</div><div class="big" style="font-size:28px">${r.dir === 'up' ? '▲' : '▼'} ${t(r.dir)}</div></div>
+  <div class="card center">${body}</div>
+  ${admin}
+  <p class="note">${t('rule')}</p>
+  <div class="row"><button class="btn ghost" data-go="history">${t('s3')}</button><button class="btn" data-go="select">${t('again')}</button></div>`;
+}
+
+function vHistory() {
+  const f = S.hf, now = Date.now(), today = mskDayKey(new Date());
+  const inPeriod = r => f.period === 'ever' ? true : f.period === 'today' ? mskDayKey(new Date(r.ts)) === today : now - r.ts <= (f.period === 'd7' ? 7 : 30) * 864e5;
+  const list = Store.all().filter(r => (f.cls === 'all' || r.cls === f.cls) && inPeriod(r)).reverse();
+  const st = statsOf(list);
+  return `
+  <div class="card">
+    <div class="chips">${['all', 'forex', 'crypto', 'stocks'].map(c => `<button class="chip ${f.cls === c ? 'on' : ''}" data-hcls="${c}">${t(c)}</button>`).join('')}</div>
+    <div class="chips" style="margin:0">${['today', 'd7', 'd30', 'ever'].map(p => `<button class="chip ${f.period === p ? 'on' : ''}" data-hper="${p}">${t(p)}</button>`).join('')}</div>
+  </div>
+  <div class="card">
+    <div class="stats"><div class="stat"><b class="c-up">${st.w}</b><span>${t('win')}</span></div><div class="stat"><b class="c-down">${st.l}</b><span>${t('loss')}</span></div><div class="stat"><b>${st.f}</b><span>${t('refund')}</span></div></div>
+    <div class="row mt"><div class="stat"><b>${pct(st.wr)}</b><span>${t('winrate')}</span></div><div class="stat"><b>${pct(beRate())}</b><span>${t('be')}</span></div></div>
+    <p class="note mt" style="margin-bottom:0">${t('histCap')}</p>
+  </div>
+  <div class="card">${list.length ? list.map(r => {
+    const a = ASSET[r.assetId];
+    return `<div class="hist-item"><div><b class="${r.dir === 'up' ? 'c-up' : 'c-down'}">${r.dir === 'up' ? '▲' : '▼'} ${a.name}</b> <span class="note">#${r.id} · ${r.exp} ${t('min')}</span>
+      <div class="meta">${dayHm(new Date(r.ts))}${r.entry != null ? ` · ${fp(a, r.entry)} → ${fp(a, r.exit)}` : ''}${isAdmin && r.posted ? ` · ${t('inCh')} · ${r.resultPosted ? t('resSent') : t('resNotSent')}` : ''}</div></div>
+      <div style="text-align:right"><span class="pill ${r.status}">${t(r.status)}</span>${isAdmin && r.posted && ['win', 'loss', 'refund'].includes(r.status) && !r.resultPosted ? `<br><button class="chip mt" data-act="postres" data-id="${r.id}">📤</button>` : ''}</div></div>`;
+  }).join('') : `<p class="note center">${t('empty')}</p>`}</div>
+  <button class="btn ghost" data-act="clear">${t('clear')}</button>`;
+}
+
+function vHow() {
+  return `<div class="card how">${HOW[S.lang].replace('{payout}', Math.round(CONFIG.PAYOUT * 100)).replace('{be}', (beRate() * 100).toFixed(1))}</div><div class="disc">${t('disc')}</div>
+  <button class="btn ghost" data-act="help">💬 ${t('help')}</button>`;
+}
+
+const refValid = d => /^https:\/\/\S+$/.test(d.url) && /^[A-Za-z0-9_-]{1,40}$/.test(d.param);
+const cleanSub = s => (s || '').replace(/[^A-Za-z0-9_-]/g, '').slice(0, 64) || 'direct';
+function settingsJson() {
+  const d = S.refDraft;
+  return JSON.stringify({
+    REF_URL: d.url, SUBID_PARAM: d.param, SUPPORT_USERNAME: cfg('SUPPORT_USERNAME'),
+    UNLOCKED_IDS: Array.isArray(REMOTE.data.UNLOCKED_IDS) ? REMOTE.data.UNLOCKED_IDS : []
+  }, null, 2);
+}
+function updateRefPreview() {
+  const d = S.refDraft, ok = refValid(d), sub = cleanSub(S.srcSub);
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set('refPreview', ok ? buildRef(d.url, d.param, 'yt01') : '—');
+  const bad = document.getElementById('refBad'); if (bad) bad.style.display = ok ? 'none' : '';
+  document.querySelectorAll('[data-needvalid]').forEach(b => b.disabled = !ok);
+  set('srcApp', appLink(sub));
+  set('srcRef', buildRef(cfg('REF_URL'), cfg('SUBID_PARAM'), sub));
+}
+function vRef() {
+  if (!S.refDraft) S.refDraft = { url: cfg('REF_URL'), param: cfg('SUBID_PARAM') };
+  if (S.srcSub == null) S.srcSub = 'yt01';
+  const d = S.refDraft;
+  setTimeout(updateRefPreview, 0);
+  return `
+  <div class="card"><div class="label">${t('refCurrent')}</div>
+    <div class="mono">${esc(cfg('REF_URL'))}</div>
+    <p class="note" style="margin:0">${esc(cfg('SUBID_PARAM'))} · ${t('refSource')}: ${cfgSource('REF_URL')}</p>
+    ${REMOTE.loaded ? '' : `<p class="note warn mt" style="margin-bottom:0">${t('refNoRemote')}</p>`}</div>
+  <div class="card"><div class="label">${t('refNew')}</div>
+    <input class="inp" id="refUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://…" value="${esc(d.url)}">
+    <input class="inp" id="refParam" autocomplete="off" placeholder="${t('refParamPh')}" value="${esc(d.param)}">
+    <p class="note" style="margin:0">${t('refPreview')}:</p><div class="mono" id="refPreview"></div>
+    <p class="note warn" id="refBad" style="display:none">${t('refBad')}</p>
+    <div class="row"><button class="btn ghost sm" data-act="reftest" data-needvalid>${t('refTest')}</button><button class="btn sm" data-act="copysettings" data-needvalid>${t('refCopyJson')}</button></div>
+    ${CONFIG.GITHUB_REPO ? `<button class="btn ghost sm mt" data-act="ghedit">${t('refGh')}</button>` : `<p class="note mt">${t('refNoRepo')}</p>`}
+    <p class="note mt" style="margin-bottom:0">${t('refHow')}</p></div>
+  <div class="card"><div class="label">${t('srcTitle')}</div>
+    <input class="inp" id="srcSub" autocomplete="off" placeholder="${t('srcSubPh')}" value="${esc(S.srcSub)}">
+    <p class="note" style="margin:0">${t('srcApp')}:</p><div class="mono" id="srcApp"></div>
+    <p class="note" style="margin:0">${t('srcRef')}:</p><div class="mono" id="srcRef"></div>
+    <button class="btn ghost sm" data-act="copysrc">${t('copy')}</button></div>`;
+}
+
+function dayList() { const k = mskDayKey(new Date()); return Store.all().filter(r => r.posted && mskDayKey(new Date(r.ts)) === k); }
+function vDay() {
+  const list = dayList(), st = statsOf(list), unsent = list.filter(r => !r.resultPosted).length;
+  return `<div class="card"><div class="label">${t('day')} · ${fmtMsk(new Date(), { day: '2-digit', month: '2-digit', year: 'numeric' })}</div><p class="note">${t('dayCap')}</p>
+    ${list.length ? `<div class="stats"><div class="stat"><b class="c-up">${st.w}</b><span>${t('win')}</span></div><div class="stat"><b class="c-down">${st.l}</b><span>${t('loss')}</span></div><div class="stat"><b>${st.f}</b><span>${t('refund')}</span></div></div>
+    <div class="row mt"><div class="stat"><b>${list.length}</b><span>${t('s1')}</span></div><div class="stat"><b>${pct(st.wr)}</b><span>${t('winrate')}</span></div><div class="stat"><b>${pct(beRate())}</b><span>${t('be')}</span></div></div>
+    ${unsent ? `<p class="warn mt">⚠ ${t('dayWarn', { n: unsent })}</p>` : ''}` : `<p>${t('dayEmpty')}</p>`}</div>
+    ${list.length ? `<button class="btn" data-act="postday">${t('daySend')}</button><button class="btn ghost mt" data-act="copyday">${t('copy')}</button>` : ''}`;
+}
+function dayText() {
+  const list = dayList(), st = statsOf(list);
+  return [t('postDay', { d: fmtMsk(new Date(), { day: '2-digit', month: '2-digit', year: 'numeric' }) }), t('postCount', { n: list.length }),
+    `${t('win')} ${st.w} · ${t('loss')} ${st.l} · ${t('refund')} ${st.f}`, `${t('winrate')}: ${pct(st.wr)}`, `${t('be')}: ${pct(beRate())}`, t('postRisk')].join('\n');
+}
+
+/* ═════════════════════════ САМОПРОВЕРКА ═════════════════════════ */
+function runUnitTests() {
+  const T = [], near = (a, b, e) => Math.abs(a - b) <= e;
+  const ws = [44.3389, 44.0902, 44.1497, 43.6124, 44.3278, 44.8264, 45.0955, 45.4245, 45.8433, 46.0826, 45.8931, 46.0328, 45.6140, 46.2820, 46.2820];
+  const r1 = Indicators.rsi(ws, 14).at(-1);
+  T.push(['RSI(14) эталон Уайлдера ≈ 70.53', near(r1, 70.53, 0.05), r1.toFixed(2)]);
+  const up = Array.from({ length: 30 }, (_, i) => 100 + i), dn = up.slice().reverse();
+  T.push(['RSI растущего ряда = 100', Indicators.rsi(up).at(-1) === 100, Indicators.rsi(up).at(-1)]);
+  T.push(['RSI падающего ряда = 0', Indicators.rsi(dn).at(-1) === 0, Indicators.rsi(dn).at(-1)]);
+  T.push(['RSI постоянного ряда = 50', Indicators.rsi(Array(30).fill(5)).at(-1) === 50, 50]);
+  const b1 = Indicators.bollinger(Array.from({ length: 20 }, (_, i) => i + 1));
+  T.push(['BB(1..20): mid 10.5', near(b1.mid, 10.5, 1e-9), b1.mid]);
+  T.push(['BB(1..20): upper 22.033', near(b1.upper, 10.5 + 2 * Math.sqrt(399 / 12), 1e-9), b1.upper.toFixed(3)]);
+  T.push(['BB(1..20): lower −1.033', near(b1.lower, 10.5 - 2 * Math.sqrt(399 / 12), 1e-9), b1.lower.toFixed(3)]);
+  const b2 = Indicators.bollinger(Array(25).fill(7));
+  T.push(['BB постоянного ряда: ширина 0', b2.upper === 7 && b2.lower === 7, `${b2.lower}/${b2.upper}`]);
+  T.push(['EMA постоянного ряда = константа', Indicators.ema(Array(60).fill(3), 20).at(-1) === 3, 3]);
+  T.push(['ВЫШЕ: выход > вход → ПЛЮС', Resolve.outcome('up', 1, 1.1) === 'win', Resolve.outcome('up', 1, 1.1)]);
+  T.push(['ВЫШЕ: выход < вход → МИНУС', Resolve.outcome('up', 1, 0.9) === 'loss', Resolve.outcome('up', 1, 0.9)]);
+  T.push(['НИЖЕ: выход < вход → ПЛЮС', Resolve.outcome('down', 1, 0.9) === 'win', Resolve.outcome('down', 1, 0.9)]);
+  T.push(['НИЖЕ: выход > вход → МИНУС', Resolve.outcome('down', 1, 1.1) === 'loss', Resolve.outcome('down', 1, 1.1)]);
+  T.push(['Равенство → ВОЗВРАТ', Resolve.outcome('up', 1, 1) === 'refund' && Resolve.outcome('down', 1, 1) === 'refund', 'refund']);
+  const cs = [0, 1, 2].map(i => ({ t: 60000 * (10 + i), o: 10 + i, h: 0, l: 0, c: 10.5 + i }));
+  const fr = Resolve.fromCandles({ dir: 'up', entryT: 600000, exp: 3 }, cs);
+  T.push(['Вход = open следующей, выход = close последней', fr.entry === 10 && fr.exit === 12.5 && fr.outcome === 'win', `${fr.entry} → ${fr.exit}`]);
+  T.push(['Нет свечи выхода → результата нет', Resolve.fromCandles({ dir: 'up', entryT: 600000, exp: 5 }, cs) === null, 'null']);
+  return T;
+}
+function vSelftest() {
+  const seed = +(new URLSearchParams(location.search).get('seed')) || (Date.now() % 1e9);
+  const one = backtest(randomWalk(seed, 3000), 5);
+  const agg = { signals: 0, win: 0, loss: 0, refund: 0 };
+  for (let k = 1; k <= 30; k++) { const r = backtest(randomWalk(seed + k * 7919, 3000), 5); for (const x in agg) agg[x] += r[x]; }
+  const line = r => { const n = r.win + r.loss, p = n ? r.win / n : 0, se = n ? Math.sqrt(0.25 / n) : 0; return { n, p, se, ok: n > 0 && Math.abs(p - 0.5) <= 2.6 * se }; };
+  const L1 = line(one), L2 = line(agg), tests = runUnitTests();
+  const okAll = tests.every(x => x[1]);
+  return `<div class="card"><div class="label">Selftest · seed ${seed}</div>
+    <p>Случайное блуждание, 3000 минутных свечей, экспирация 5 мин. Функциям на каждом шаге передаются только прошлые свечи.</p>
+    <table class="t"><tr><td>Сигналов</td><td><b>${one.signals}</b> (ВЫШЕ/НИЖЕ)</td></tr>
+    <tr><td>Плюс / минус / возврат</td><td>${one.win} / ${one.loss} / ${one.refund}</td></tr>
+    <tr><td>Винрейт</td><td><b>${pct(L1.p)}</b> ± ${(L1.se * 196).toFixed(1)}% (95%)</td></tr></table>
+    <p class="note mt">Контроль: 30 прогонов × 3000 свечей → сигналов ${agg.signals}, винрейт <b>${pct(L2.p)}</b> ± ${(L2.se * 196).toFixed(1)}% —
+    <span class="${L2.ok ? 'pass' : 'fail'}">${L2.ok ? 'около 50%, заглядывания вперёд нет' : 'отклонение от 50% — проверьте логику'}</span></p></div>
+    <div class="card"><div class="label">Юнит-проверки · <span class="${okAll ? 'pass' : 'fail'}">${tests.filter(x => x[1]).length}/${tests.length}</span></div>
+    <table class="t">${tests.map(([n, ok, v]) => `<tr><td>${esc(n)}</td><td class="${ok ? 'pass' : 'fail'}">${ok ? 'OK' : 'FAIL'}</td><td class="note">${esc(v)}</td></tr>`).join('')}</table></div>
+    <a class="btn ghost" href="?selftest=1">Ещё прогон</a>`;
+}
+
+/* ═════════════════════════ РЕНДЕР И СОБЫТИЯ ═════════════════════════ */
+function render() {
+  document.documentElement.lang = S.lang;
+  $('#appName').textContent = CONFIG.APP_NAME;
+  document.title = CONFIG.APP_NAME;
+  $('#tagline').textContent = t('tagline');
+  $('#btnLang').textContent = S.lang === 'ru' ? 'EN' : 'RU';
+  renderSteps(); renderFoot();
+  const v = { select: vSelect, signal: vSignal, result: vResult, history: vHistory, how: vHow, day: vDay, ref: isAdmin ? vRef : vSelect, selftest: vSelftest }[S.screen] || vSelect;
+  $('#view').innerHTML = v();
+  if (tg && tg.BackButton) S.screen === 'select' ? tg.BackButton.hide() : tg.BackButton.show();
+  tick();
+}
+function goBack() { S.screen = S.screen === 'result' && S.an && S.an.status === 'ok' ? 'signal' : 'select'; render(); }
+function tick() {
+  const now = Date.now();
+  document.querySelectorAll('[data-deadline]').forEach(el => {
+    const left = +el.dataset.deadline - now;
+    el.classList.toggle('exp', left <= 0);
+    el.textContent = left > 0 ? `${t('window')}: ${mmss(left)}` : t('windowOut');
+  });
+  let rerender = false;
+  document.querySelectorAll('[data-due]').forEach(el => { const left = +el.dataset.due - now; el.textContent = mmss(left); if (left <= 0) rerender = true; });
+  if (rerender) render();
+}
+setInterval(tick, 1000);
+setInterval(() => resolvePending(false), 5000);
+setInterval(() => { if (S.screen === 'select') render(); }, 60000);
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button,a'); if (!b) return;
+  const ds = b.dataset;
+  if (ds.go) { S.screen = ds.go; if (ds.go === 'result') resolvePending(true); return render(); }
+  if (ds.cls) { S.cls = ds.cls; const f = ASSETS.find(a => a.cls === ds.cls && isOpen(a.cls) && !assetLocked(a)) || ASSETS.find(a => a.cls === ds.cls); S.assetId = f.id; if (ds.cls === 'stocks' && S.stockRT === 'unknown') checkStocksRealtime(); return render(); }
+  if (ds.asset) { S.assetId = ds.asset; return render(); }
+  if (ds.exp) { S.exp = +ds.exp; return render(); }
+  if (ds.hcls) { S.hf.cls = ds.hcls; return render(); }
+  if (ds.hper) { S.hf.period = ds.hper; return render(); }
+  const id = ds.id ? +ds.id : null, rec = id ? Store.get(id) : null;
+  switch (ds.act) {
+    case 'analyze': return runAnalysis();
+    case 'ai': return aiExplain();
+    case 'ref': return openExternal(refLink());
+    case 'help': return openTg(supportLink());
+    case 'copyid': if (tgUser) copyText(String(tgUser.id)); return;
+    case 'resolve': return resolvePending(true);
+    case 'post': if (rec) { shareToChannel(postSignalText(rec)); Store.patch(id, { posted: true }); render(); } return;
+    case 'copy': if (rec) copyText(postSignalText(rec)); return;
+    case 'postres': if (rec) { shareToChannel(postResultText(rec)); Store.patch(id, { resultPosted: true }); render(); } return;
+    case 'copyres': if (rec) copyText(postResultText(rec)); return;
+    case 'clear': if (await confirmBox(t('clearQ'))) { Store.clear(); S.currentId = null; render(); } return;
+    case 'postday': { const n = dayList().filter(r => !r.resultPosted).length; if (n && !(await confirmBox(t('dayWarn', { n })))) return; shareToChannel(dayText()); return; }
+    case 'copyday': return copyText(dayText());
+    case 'reftest': if (refValid(S.refDraft)) openExternal(buildRef(S.refDraft.url, S.refDraft.param, 'test')); return;
+    case 'copysettings': if (refValid(S.refDraft)) copyText(settingsJson()); return;
+    case 'ghedit': return openExternal(`https://github.com/${CONFIG.GITHUB_REPO}/edit/main/settings.json`);
+    case 'copysrc': return copyText(appLink(cleanSub(S.srcSub)));
+  }
+});
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.id === 'refUrl') S.refDraft.url = el.value.trim();
+  else if (el.id === 'refParam') S.refDraft.param = el.value.trim();
+  else if (el.id === 'srcSub') S.srcSub = el.value.trim();
+  else return;
+  updateRefPreview();
+});
+$('#btnLang').onclick = () => { S.lang = S.lang === 'ru' ? 'en' : 'ru'; LS.set('ta_lang', S.lang); render(); };
+$('#btnHelp').onclick = () => openTg(supportLink());
+
+// экспорт чистых функций для внешних тестов
+window.TA = { Indicators, Signal, Resolve, aggregate, randomWalk, backtest };
+
+applyTheme();
+if (new URLSearchParams(location.search).get('selftest') === '1') S.screen = 'selftest';
+render();
+if (S.screen !== 'selftest') { loadSettings().then(checkStocksRealtime); resolvePending(true); }
+</script>
+</body>
+</html>
