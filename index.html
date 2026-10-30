@@ -903,7 +903,8 @@ function vHistory() {
 
 function vHow() {
   return `<div class="card how">${HOW[S.lang].replace('{payout}', Math.round(CONFIG.PAYOUT * 100)).replace('{be}', (beRate() * 100).toFixed(1))}</div><div class="disc">${t('disc')}</div>
-  <button class="btn ghost" data-act="help">💬 ${t('help')}</button>`;
+  <button class="btn ghost" data-act="help">💬 ${t('help')}</button>
+  <p class="note center mt">Telegram: ${tg ? 'v' + esc(tg.version || '?') : '—'} · ID: ${tgUser ? tgUser.id : '—'}${isRealAdmin ? ' · admin' : ''}</p>`;
 }
 
 const refValid = d => /^https:\/\/\S+$/.test(d.url) && /^[A-Za-z0-9_-]{1,40}$/.test(d.param);
