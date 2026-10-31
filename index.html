@@ -914,9 +914,10 @@ const C2 = new Map(); // `${id}|${tf}` → { data, ts, gap, src }
 const METRICS = LS.get('ta_metrics', null) || {};
 async function getTF(a, tfKey) {
   const key = a.id + '|' + tfKey, e = C2.get(key), tf = TF[tfKey], now = Date.now();
-  const wsFresh = e && e.src === 'ws' && !e.gap && WS.status === 'on' && now - e.ts < tf.ms + 15000;
-  const ttl = a.src === 'td' ? 60000 : tfKey === S.tf ? 5000 : 60000;
-  if (e && !e.gap && (wsFresh || now - e.ts < ttl)) return e.data;
+  // закрытая свеча не меняется: данные верны, пока не закрылась следующая (+ запас на задержку биржи)
+  if (e && !e.gap && e.data.length && now < e.data[e.data.length - 1].t + 2 * tf.ms + (a.src === 'td' ? 20000 : 2500)) { METRICS.cacheHits = (METRICS.cacheHits || 0) + 1; return e.data; }
+  // источник отдал устаревшие данные — не долбим его чаще раза в 20 с
+  if (e && !e.gap && now - e.ts < 20000) return e.data;
   const t0 = performance.now();
   let data;
   if (a.src === 'binance') data = await binanceKlines(a.sym, tf.bin, { limit: '160' });
@@ -968,6 +969,17 @@ function wsScheduleReconnect() {
 }
 function wsHeartbeat() {
   if (WS.status === 'on' && Date.now() - WS.lastMsg > 20000 && WS.sock) { try { WS.sock.close(); } catch { } } // поток молчит — переподключаемся
+}
+
+// Прогрев: в фоне загружаем свечи быстрого списка (рабочий и старший ТФ), дальше их держит
+// WebSocket — нажатие «Найти сигнал» почти не ходит в сеть.
+let warming = null;
+function warmUp() {
+  if (warming) return warming;
+  const tf = TF[S.tf], set = scanSet('quick').filter(a => a.src === 'binance');
+  warming = pool(set, 6, async a => { try { await Promise.all([getTF(a, S.tf), tf.higher ? getTF(a, tf.higher) : null]); } catch { } })
+    .finally(() => { warming = null; });
+  return warming;
 }
 
 /* ═════════════════════════ СКАНЕР «НАЙТИ СИГНАЛ» ═════════════════════════ */
@@ -2090,7 +2102,7 @@ function admBot() {
   const d = W.data;
   if (!d.kv) return `<div class="card"><div class="label">${t('admBot')}</div><p class="warn" style="margin:0">${t('admNoKv')}</p></div>`;
   return `<div class="card"><div class="label">${t('admBot')}</div>
-    <p style="margin:0 0 8px">${t('admAuto')}: <b class="${d.auto ? 'c-up' : 'c-down'}">${d.auto ? t('on') : t('off')}</b> · ${esc(d.assets)} · ${d.exp} ${t('min')}<br><span class="note">${t('admChannel')}: ${esc(d.channel || '—')}</span></p>
+    <p style="margin:0 0 8px">${t('admAuto')}: <b class="${d.auto ? 'c-up' : 'c-down'}">${d.auto ? t('on') : t('off')}</b> · ${esc(d.assets)} · ${d.exp} ${t('min')}${d.engine ? ' · ' + esc(d.engine) + ' ' + esc(d.tf || '') : ''}<br><span class="note">${t('admChannel')}: ${esc(d.channel || '—')}</span></p>
     <p class="note">${t('admToday', d.today)} · ${t('admPending', { n: d.pending })}</p>
     <div class="row"><button class="btn sm" data-act="wauto">${d.auto ? t('admAutoOff') : t('admAutoOn')}</button><button class="btn ghost sm" data-act="wtest">${t('admTest')}</button></div>
     <button class="btn ghost sm mt" data-act="wday">${t('admDayBot')}</button></div>`;
@@ -2240,6 +2252,7 @@ function tick() {
     S.watchMin = Math.floor(now / 60000); watchRun();
   }
   wsHeartbeat();
+  if (S.screen === 'home' && REG.loaded && new Date(now).getSeconds() === 6) warmUp();
   if (S.monitor && S.mode !== 'otc' && !(S.find && S.find.running)) {
     const ms = TF[S.tf].ms, slot = Math.floor(now / ms);
     if (now - slot * ms >= 4000 && S.monSlot !== slot) { S.monSlot = slot; findSignal(S.mode, true); }
@@ -2266,7 +2279,7 @@ document.addEventListener('click', async e => {
   if (ds.scanopen) { $('#banner').classList.remove('show'); const a = ASSET[ds.scanopen]; S.assetId = a.id; S.cls = a.cls; return runAnalysis(); }
   if (ds.ap) { S.ap = ds.ap; return render(); }
   if (ds.mode) { S.mode = ds.mode; S.find = S.find && S.find.running ? S.find : null; S.monitor = ds.mode === 'auto'; return render(); }
-  if (ds.tf) { S.tf = ds.tf; S.find = null; S.monitor = false; wsConnect(); return render(); }
+  if (ds.tf) { S.tf = ds.tf; S.find = null; S.monitor = false; wsConnect(); warmUp(); return render(); }
   if (ds.fexp) { S.fexp = +ds.fexp; return render(); }
   if (ds.btexp) { S.btExp = +ds.btexp; return render(); }
   if (ds.bdim) { S.bdim = ds.bdim; return render(); }
@@ -2377,7 +2390,7 @@ window.TA = { Indicators, Signal, Resolve, aggregate, randomWalk, backtest };
 applyTheme();
 if (new URLSearchParams(location.search).get('selftest') === '1') S.screen = 'selftest';
 render();
-if (S.screen !== 'selftest') { loadSettings().then(checkStocksRealtime); checkWorkerAccess(); resolvePending(true); loadRegistry().then(() => { wsConnect(); render(); }); }
+if (S.screen !== 'selftest') { loadSettings().then(checkStocksRealtime); checkWorkerAccess(); resolvePending(true); loadRegistry().then(() => { wsConnect(); render(); warmUp(); }); }
 </script>
 </body>
 </html>

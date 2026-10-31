@@ -7,8 +7,11 @@
      ADMIN_IDS      — "861034642,900500058"
      APP_LINK       — "https://t.me/ta_signals_robot/trade228"
      ALLOWED_ORIGIN — "https://latyson.github.io"
-     AUTO_ASSETS    — необязательно, по умолчанию "EURUSD,BTCUSD,ETHUSD"
-     AUTO_EXP       — необязательно: 1, 3 или 5 (по умолчанию 5)
+     AUTO_ASSETS    — необязательно, по умолчанию все активы из ASSETS ниже
+     AUTO_EXP       — необязательно: экспирация в минутах (по умолчанию 5)
+     AUTO_TF        — необязательно: M1 или M5 (по умолчанию M1)
+     ENGINE         — необязательно: v2 (по умолчанию, один лучший сигнал по всем активам) или v1 (старые правила)
+     MIN_QUALITY    — необязательно: medium (по умолчанию) или high
      PAYOUT         — необязательно, по умолчанию 0.8
      OPENROUTER_KEY — тип Secret, необязательно: ключ openrouter.ai — ИИ-кнопки заработают у всех пользователей
    Bindings → KV namespace, имя переменной STATE.
@@ -234,8 +237,16 @@ function engineBacktest(c1, exp = 5) {
 const ASSETS = {
   EURUSD: { name: 'EUR/USD', sym: 'EURUSDT', cls: 'forex', pip: 0.0001, dec: 5 },
   BTCUSD: { name: 'BTC/USD', sym: 'BTCUSDT', cls: 'crypto', dec: 2 },
-  ETHUSD: { name: 'ETH/USD', sym: 'ETHUSDT', cls: 'crypto', dec: 2 }
+  ETHUSD: { name: 'ETH/USD', sym: 'ETHUSDT', cls: 'crypto', dec: 2 },
+  SOLUSD: { name: 'SOL/USD', sym: 'SOLUSDT', cls: 'crypto', dec: 2 },
+  XRPUSD: { name: 'XRP/USD', sym: 'XRPUSDT', cls: 'crypto', dec: 4 },
+  BNBUSD: { name: 'BNB/USD', sym: 'BNBUSDT', cls: 'crypto', dec: 2 },
+  DOGEUSD: { name: 'DOGE/USD', sym: 'DOGEUSDT', cls: 'crypto', dec: 5 },
+  XAUPAXG: { name: 'Золото · PAXG', sym: 'PAXGUSDT', cls: 'crypto', dec: 2 }
 };
+const DEFAULT_ASSETS = Object.keys(ASSETS).join(',');
+const TFS = { M1: { bin: '1m', ms: 60000, higher: '5m' }, M5: { bin: '5m', ms: 300000, higher: '15m' } };
+const QUAL = { high: 'высокое', medium: 'среднее' }, QRANK = { high: 2, medium: 1, low: 0 };
 const BINANCE = ['https://data-api.binance.vision', 'https://api.binance.com'];
 const DIR = { up: 'ВЫШЕ', down: 'НИЖЕ' }, TREND = { up: 'вверх', down: 'вниз', flat: 'флэт' };
 const RES = { win: 'ПЛЮС ✅', loss: 'МИНУС ❌', refund: 'ВОЗВРАТ ↩' };
@@ -293,6 +304,17 @@ function signalText(n, a, r, exp, deadline) {
     RISK
   ].join('\n');
 }
+// пост для движка v2: качество — число совпавших факторов, не вероятность
+function signalTextV2(n, a, r, tf, exp, deadline) {
+  const lvl = r.dir === 'up' ? r.res : r.sup;
+  return [
+    `СИГНАЛ #${n}`,
+    `${a.name} (не OTC) · ${DIR[r.dir]} · ${exp} мин · ${tf}`,
+    `Вход до ${hms(deadline)} МСК`,
+    `Качество: ${QUAL[r.quality]} · Тренд старшего ТФ: ${r.htf ? TREND[r.htf.dir] : '—'} · До уровня: ${lvl != null ? fdist(a, Math.abs(lvl - r.price)) : '—'}`,
+    RISK
+  ].join('\n');
+}
 const resultText = (p, res, a) => `#${p.n} — ${RES[res.outcome]}\nВход ${fp(a, res.entry)} → выход ${fp(a, res.exit)}`;
 function dayText(env, s, ms = Date.now()) {
   const wr = s.w + s.l ? s.w / (s.w + s.l) : null, be = 1 / (1 + (Number(env.PAYOUT) || 0.8));
@@ -327,7 +349,37 @@ async function runCron(env) {
     if (now - due < 3600e3) keep.push(p); else changed = true; // через час без данных — снимаем
   }
   pending = keep;
-  if (await autoOn(env)) {
+  if (await autoOn(env) && env.ENGINE !== 'v1') {
+    // движок v2: анализируем все активы и публикуем ОДИН лучший сигнал на закрытии свечи
+    const tfKey = TFS[env.AUTO_TF] ? env.AUTO_TF : 'M1', tf = TFS[tfKey];
+    const exp = +env.AUTO_EXP > 0 && +env.AUTO_EXP <= 240 ? +env.AUTO_EXP : 5;
+    const minQ = env.MIN_QUALITY === 'high' ? 2 : 1;
+    const ids = String(env.AUTO_ASSETS || DEFAULT_ASSETS).split(',').map(s => s.trim()).filter(id => ASSETS[id]);
+    const cands = [];
+    await Promise.all(ids.map(async id => {
+      const a = ASSETS[id];
+      if (!isOpen(a.cls) || pending.some(p => p.id === id)) return; // по активу одна открытая сделка
+      try {
+        const [c, ch] = await Promise.all([klines(a.sym, tf.bin, { limit: '160' }), klines(a.sym, tf.higher, { limit: '160' })]);
+        const last = c.at(-1);
+        if (!last || now - (last.t + tf.ms) > 55000) return; // эту свечу уже проверял прошлый запуск
+        const r = Engine.analyze(c.slice(-150), ch.slice(-100));
+        if (r.dir !== 'none' && QRANK[r.quality] >= minQ) cands.push({ id, a, r, entryT: last.t + tf.ms });
+      } catch { }
+    }));
+    cands.sort((x, y) => QRANK[y.r.quality] - QRANK[x.r.quality] || y.r.score - x.r.score || x.r.con - y.r.con);
+    const best = cands[0];
+    if (best) {
+      try {
+        const n = (await kvGet(env, 'counter', 0)) + 1;
+        await kvPut(env, 'counter', n);
+        await sendToChannel(env, signalTextV2(n, best.a, best.r, tfKey, exp, best.entryT + 60000));
+        await bumpDay(env, 'n', best.entryT);
+        pending.push({ n, id: best.id, dir: best.r.dir, entryT: best.entryT, exp, v: 2 });
+        changed = true;
+      } catch { }
+    }
+  } else if (await autoOn(env)) {
     const exp = [1, 3, 5].includes(+env.AUTO_EXP) ? +env.AUTO_EXP : 5;
     const ids = String(env.AUTO_ASSETS || 'EURUSD,BTCUSD,ETHUSD').split(',').map(s => s.trim()).filter(id => ASSETS[id]);
     for (const id of ids) {
@@ -414,7 +466,8 @@ async function handle(req, env) {
         return json({
           ok: true, kv: true, channel: env.CHANNEL_ID || null, auto: await autoOn(env), access,
           today: await kvGet(env, 'day:' + dayKey(), { ...EMPTY_DAY }), pending: (await kvGet(env, 'pending', [])).length,
-          assets: env.AUTO_ASSETS || 'EURUSD,BTCUSD,ETHUSD', exp: [1, 3, 5].includes(+env.AUTO_EXP) ? +env.AUTO_EXP : 5
+          assets: env.AUTO_ASSETS || (env.ENGINE === 'v1' ? 'EURUSD,BTCUSD,ETHUSD' : DEFAULT_ASSETS), exp: +env.AUTO_EXP > 0 ? +env.AUTO_EXP : 5,
+          engine: env.ENGINE === 'v1' ? 'v1' : ENGINE_VERSION, tf: TFS[env.AUTO_TF] ? env.AUTO_TF : 'M1'
         });
       case 'setAuto':
         if (!kv) return needKv();
