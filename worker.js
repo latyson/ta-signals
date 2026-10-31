@@ -115,6 +115,121 @@ const Resolve = {
   }
 };
 
+/* ═══════════ Аналитический движок v2 (чистые функции) ═══════════
+   Все числа считаются программно; ИИ получает готовые признаки и только объясняет. */
+const ENGINE_VERSION = 'v2.0';
+Object.assign(Indicators, {
+  macd(closes, fast = 12, slow = 26, sig = 9) {
+    const ef = Indicators.ema(closes, fast), es = Indicators.ema(closes, slow);
+    const line = [];
+    for (let i = 0; i < closes.length; i++) if (ef[i] != null && es[i] != null) line.push(ef[i] - es[i]);
+    if (line.length < sig + 2) return null;
+    const sl = Indicators.ema(line, sig), n = line.length;
+    return { macd: line[n - 1], signal: sl[n - 1], hist: line[n - 1] - sl[n - 1], histPrev: line[n - 2] - sl[n - 2] };
+  },
+  // ATR по Уайлдеру
+  atr(c, p = 14) {
+    if (c.length <= p) return null;
+    const tr = [];
+    for (let i = 1; i < c.length; i++) tr.push(Math.max(c[i].h - c[i].l, Math.abs(c[i].h - c[i - 1].c), Math.abs(c[i].l - c[i - 1].c)));
+    let a = tr.slice(0, p).reduce((s, v) => s + v, 0) / p;
+    for (let i = p; i < tr.length; i++) a = (a * (p - 1) + tr[i]) / p;
+    return a;
+  },
+  // локальные экстремумы (фрактал 2+2) — уровни поддержки/сопротивления
+  swings(c, lookback = 80) {
+    const w = c.slice(-lookback), hi = [], lo = [];
+    for (let i = 2; i < w.length - 2; i++) {
+      if (w[i].h >= Math.max(w[i - 1].h, w[i - 2].h, w[i + 1].h, w[i + 2].h)) hi.push(w[i].h);
+      if (w[i].l <= Math.min(w[i - 1].l, w[i - 2].l, w[i + 1].l, w[i + 2].l)) lo.push(w[i].l);
+    }
+    return { hi, lo };
+  },
+  // эффективность движения Кауфмана: 1 — чистый тренд, около 0 — шум
+  efficiency(closes, n = 20) {
+    if (closes.length <= n) return null;
+    const w = closes.slice(-n - 1);
+    let path = 0;
+    for (let i = 1; i < w.length; i++) path += Math.abs(w[i] - w[i - 1]);
+    return path ? Math.abs(w[w.length - 1] - w[0]) / path : 0;
+  }
+});
+
+const Engine = {
+  MIN: 120,
+  // c — закрытые свечи рабочего ТФ (≥120), ch — закрытые свечи старшего ТФ (≥55) или null
+  analyze(c, ch) {
+    if (!c || c.length < Engine.MIN) return { dir: 'none', lean: 'none', error: 'insufficient' };
+    const closes = c.map(x => x.c), last = c[c.length - 1], price = last.c;
+    const e9 = Indicators.ema(closes, 9).at(-1), e21 = Indicators.ema(closes, 21).at(-1);
+    const rsi = Indicators.rsi(closes, 14).at(-1), bb = Indicators.bollinger(closes, 20, 2), macd = Indicators.macd(closes);
+    const atr = Indicators.atr(c, 14) || 1e-12;
+    const atrs = [];
+    for (let k = c.length - 100; k <= c.length; k += 10) { const v = Indicators.atr(c.slice(0, k), 14); if (v) atrs.push(v); }
+    atrs.sort((a, b) => a - b);
+    const volRatio = atr / (atrs[Math.floor(atrs.length / 2)] || atr);
+    const er = Indicators.efficiency(closes, 20);
+    const sw = Indicators.swings(c, 80);
+    const res = sw.hi.filter(v => v > price).sort((a, b) => a - b)[0] ?? null;
+    const sup = sw.lo.filter(v => v < price).sort((a, b) => b - a)[0] ?? null;
+    let htf = null;
+    if (ch && ch.length >= 55) {
+      const hc = ch.map(x => x.c), a20 = Indicators.ema(hc, 20).at(-1), a50 = Indicators.ema(hc, 50).at(-1), pct = (a20 - a50) / a50 * 100;
+      htf = { dir: Math.abs(pct) < 0.03 ? 'flat' : pct > 0 ? 'up' : 'down', pct };
+    }
+    const F = [], add = (key, vote, w, val) => F.push({ key, vote, w, val });
+    add('ema', e9 > e21 ? 1 : -1, 1, (e9 - e21) / e21 * 100);
+    if (htf) add('htf', htf.dir === 'up' ? 1 : htf.dir === 'down' ? -1 : 0, 1.5, htf.dir);
+    if (macd) { add('macd', macd.hist > 0 ? 1 : -1, 1, macd.hist); add('macdSlope', macd.hist > macd.histPrev ? 1 : -1, 0.5, macd.hist - macd.histPrev); }
+    if (rsi < 30) add('rsiExt', 1, 1, rsi);
+    else if (rsi > 70) add('rsiExt', -1, 1, rsi);
+    else add('rsiMom', rsi > 52 ? 1 : rsi < 48 ? -1 : 0, 0.5, rsi);
+    if (price < bb.lower) add('bb', 1, 1, 'below');
+    else if (price > bb.upper) add('bb', -1, 1, 'above');
+    if (sup != null && price - sup < 0.5 * atr) add('support', 1, 0.5, sup);
+    if (res != null && res - price < 0.5 * atr) add('resist', -1, 0.5, res);
+    const up = F.filter(f => f.vote > 0).reduce((s, f) => s + f.w, 0), dn = F.filter(f => f.vote < 0).reduce((s, f) => s + f.w, 0);
+    const lean = up > dn ? 'up' : dn > up ? 'down' : 'none';
+    const pro = lean === 'up' ? up : dn, con = lean === 'up' ? dn : up;
+    const score = up + dn ? Math.round(100 * (pro - con) / (up + dn)) : 0; // согласованность факторов, не вероятность
+    const filters = [];
+    if (volRatio < 0.5) filters.push('lowVol');
+    if (volRatio > 2.5) filters.push('highVol');
+    if (er != null && er < 0.1) filters.push('noise');
+    const room = lean === 'up' ? (res != null ? (res - price) / atr : Infinity) : lean === 'down' ? (sup != null ? (price - sup) / atr : Infinity) : Infinity;
+    if (room < 0.3) filters.push('noRoom');
+    if (con >= pro * 0.4) filters.push('contradiction');
+    if (pro < 3) filters.push('weak');
+    if (lean === 'none') filters.push('noLean');
+    const passed = !filters.length;
+    const quality = !passed ? 'low' : score >= 70 && con === 0 ? 'high' : score >= 45 ? 'medium' : 'low';
+    return {
+      dir: passed && quality !== 'low' ? lean : 'none', lean, score, quality, pro, con, factors: F, filters,
+      price, atr, rsi, bb, macd, e9, e21, htf, er, volRatio, sup, res, candle: last, version: ENGINE_VERSION
+    };
+  }
+};
+
+// Бэктест движка без заглядывания вперёд: на шаге i доступны только свечи ≤ i.
+// c1 — минутные свечи; рабочий ТФ M1, старший — агрегированный M5. Делит выборку на in-sample (70%) и out-of-sample (30%).
+function engineBacktest(c1, exp = 5) {
+  const c5 = aggregate(c1, 5), start = Engine.MIN + 300, split = Math.floor(start + 0.7 * (c1.length - start));
+  const seg = () => ({ signals: 0, win: 0, loss: 0, refund: 0 }), out = { ins: seg(), oos: seg(), from: start, split, to: c1.length };
+  let j = 0;
+  for (let i = start; i < c1.length - exp; i++) {
+    const endT = c1[i].t + 60000;
+    while (j < c5.length && c5[j].t + 300000 <= endT) j++;
+    const r = Engine.analyze(c1.slice(i - 149, i + 1), c5.slice(Math.max(0, j - 100), j));
+    if (r.dir === 'none') continue;
+    const res = Resolve.fromCandles({ dir: r.dir, entryT: endT, exp }, c1.slice(i + 1, i + 1 + exp));
+    if (!res) continue;
+    const s = i < split ? out.ins : out.oos;
+    s.signals++; s[res.outcome]++;
+    i += exp;
+  }
+  return out;
+}
+
 
 const ASSETS = {
   EURUSD: { name: 'EUR/USD', sym: 'EURUSDT', cls: 'forex', pip: 0.0001, dec: 5 },

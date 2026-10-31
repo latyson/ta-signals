@@ -134,6 +134,13 @@ svg .bbm{fill:none;stroke:rgba(148,163,184,.45);stroke-width:1}svg .lastl{stroke
   background:#132a20;border:1px solid rgba(22,199,132,.55);box-shadow:0 10px 30px rgba(0,0,0,.45);display:none;align-items:center;gap:10px;font-weight:600}
 .banner.down{background:#2c1416;border-color:rgba(239,68,68,.55)}
 .banner.show{display:flex}.banner span{flex:1}.banner button{padding:8px 12px;border-radius:10px;background:var(--card2);font-weight:700}
+.hero{display:flex;flex-direction:column;align-items:center;padding:6px 0 16px}
+.bigbtn{width:190px;height:190px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  font-size:48px;font-weight:800;color:#fff;background:radial-gradient(circle at 35% 30%,#4f8cff,#1d4ed8);
+  box-shadow:0 0 0 10px rgba(59,130,246,.12),0 0 50px rgba(59,130,246,.45);transition:transform .1s}
+.bigbtn span{font-size:18px;letter-spacing:.3px}
+.bigbtn:active{transform:scale(.96)}.bigbtn:disabled{opacity:.6}
+select.inp{appearance:auto}
 @media (max-width:360px){.metrics{grid-template-columns:1fr 1fr}.dir .big{font-size:34px}}
 </style>
 </head>
@@ -295,6 +302,121 @@ const Resolve = {
   }
 };
 
+/* ═══════════ Аналитический движок v2 (чистые функции) ═══════════
+   Все числа считаются программно; ИИ получает готовые признаки и только объясняет. */
+const ENGINE_VERSION = 'v2.0';
+Object.assign(Indicators, {
+  macd(closes, fast = 12, slow = 26, sig = 9) {
+    const ef = Indicators.ema(closes, fast), es = Indicators.ema(closes, slow);
+    const line = [];
+    for (let i = 0; i < closes.length; i++) if (ef[i] != null && es[i] != null) line.push(ef[i] - es[i]);
+    if (line.length < sig + 2) return null;
+    const sl = Indicators.ema(line, sig), n = line.length;
+    return { macd: line[n - 1], signal: sl[n - 1], hist: line[n - 1] - sl[n - 1], histPrev: line[n - 2] - sl[n - 2] };
+  },
+  // ATR по Уайлдеру
+  atr(c, p = 14) {
+    if (c.length <= p) return null;
+    const tr = [];
+    for (let i = 1; i < c.length; i++) tr.push(Math.max(c[i].h - c[i].l, Math.abs(c[i].h - c[i - 1].c), Math.abs(c[i].l - c[i - 1].c)));
+    let a = tr.slice(0, p).reduce((s, v) => s + v, 0) / p;
+    for (let i = p; i < tr.length; i++) a = (a * (p - 1) + tr[i]) / p;
+    return a;
+  },
+  // локальные экстремумы (фрактал 2+2) — уровни поддержки/сопротивления
+  swings(c, lookback = 80) {
+    const w = c.slice(-lookback), hi = [], lo = [];
+    for (let i = 2; i < w.length - 2; i++) {
+      if (w[i].h >= Math.max(w[i - 1].h, w[i - 2].h, w[i + 1].h, w[i + 2].h)) hi.push(w[i].h);
+      if (w[i].l <= Math.min(w[i - 1].l, w[i - 2].l, w[i + 1].l, w[i + 2].l)) lo.push(w[i].l);
+    }
+    return { hi, lo };
+  },
+  // эффективность движения Кауфмана: 1 — чистый тренд, около 0 — шум
+  efficiency(closes, n = 20) {
+    if (closes.length <= n) return null;
+    const w = closes.slice(-n - 1);
+    let path = 0;
+    for (let i = 1; i < w.length; i++) path += Math.abs(w[i] - w[i - 1]);
+    return path ? Math.abs(w[w.length - 1] - w[0]) / path : 0;
+  }
+});
+
+const Engine = {
+  MIN: 120,
+  // c — закрытые свечи рабочего ТФ (≥120), ch — закрытые свечи старшего ТФ (≥55) или null
+  analyze(c, ch) {
+    if (!c || c.length < Engine.MIN) return { dir: 'none', lean: 'none', error: 'insufficient' };
+    const closes = c.map(x => x.c), last = c[c.length - 1], price = last.c;
+    const e9 = Indicators.ema(closes, 9).at(-1), e21 = Indicators.ema(closes, 21).at(-1);
+    const rsi = Indicators.rsi(closes, 14).at(-1), bb = Indicators.bollinger(closes, 20, 2), macd = Indicators.macd(closes);
+    const atr = Indicators.atr(c, 14) || 1e-12;
+    const atrs = [];
+    for (let k = c.length - 100; k <= c.length; k += 10) { const v = Indicators.atr(c.slice(0, k), 14); if (v) atrs.push(v); }
+    atrs.sort((a, b) => a - b);
+    const volRatio = atr / (atrs[Math.floor(atrs.length / 2)] || atr);
+    const er = Indicators.efficiency(closes, 20);
+    const sw = Indicators.swings(c, 80);
+    const res = sw.hi.filter(v => v > price).sort((a, b) => a - b)[0] ?? null;
+    const sup = sw.lo.filter(v => v < price).sort((a, b) => b - a)[0] ?? null;
+    let htf = null;
+    if (ch && ch.length >= 55) {
+      const hc = ch.map(x => x.c), a20 = Indicators.ema(hc, 20).at(-1), a50 = Indicators.ema(hc, 50).at(-1), pct = (a20 - a50) / a50 * 100;
+      htf = { dir: Math.abs(pct) < 0.03 ? 'flat' : pct > 0 ? 'up' : 'down', pct };
+    }
+    const F = [], add = (key, vote, w, val) => F.push({ key, vote, w, val });
+    add('ema', e9 > e21 ? 1 : -1, 1, (e9 - e21) / e21 * 100);
+    if (htf) add('htf', htf.dir === 'up' ? 1 : htf.dir === 'down' ? -1 : 0, 1.5, htf.dir);
+    if (macd) { add('macd', macd.hist > 0 ? 1 : -1, 1, macd.hist); add('macdSlope', macd.hist > macd.histPrev ? 1 : -1, 0.5, macd.hist - macd.histPrev); }
+    if (rsi < 30) add('rsiExt', 1, 1, rsi);
+    else if (rsi > 70) add('rsiExt', -1, 1, rsi);
+    else add('rsiMom', rsi > 52 ? 1 : rsi < 48 ? -1 : 0, 0.5, rsi);
+    if (price < bb.lower) add('bb', 1, 1, 'below');
+    else if (price > bb.upper) add('bb', -1, 1, 'above');
+    if (sup != null && price - sup < 0.5 * atr) add('support', 1, 0.5, sup);
+    if (res != null && res - price < 0.5 * atr) add('resist', -1, 0.5, res);
+    const up = F.filter(f => f.vote > 0).reduce((s, f) => s + f.w, 0), dn = F.filter(f => f.vote < 0).reduce((s, f) => s + f.w, 0);
+    const lean = up > dn ? 'up' : dn > up ? 'down' : 'none';
+    const pro = lean === 'up' ? up : dn, con = lean === 'up' ? dn : up;
+    const score = up + dn ? Math.round(100 * (pro - con) / (up + dn)) : 0; // согласованность факторов, не вероятность
+    const filters = [];
+    if (volRatio < 0.5) filters.push('lowVol');
+    if (volRatio > 2.5) filters.push('highVol');
+    if (er != null && er < 0.1) filters.push('noise');
+    const room = lean === 'up' ? (res != null ? (res - price) / atr : Infinity) : lean === 'down' ? (sup != null ? (price - sup) / atr : Infinity) : Infinity;
+    if (room < 0.3) filters.push('noRoom');
+    if (con >= pro * 0.4) filters.push('contradiction');
+    if (pro < 3) filters.push('weak');
+    if (lean === 'none') filters.push('noLean');
+    const passed = !filters.length;
+    const quality = !passed ? 'low' : score >= 70 && con === 0 ? 'high' : score >= 45 ? 'medium' : 'low';
+    return {
+      dir: passed && quality !== 'low' ? lean : 'none', lean, score, quality, pro, con, factors: F, filters,
+      price, atr, rsi, bb, macd, e9, e21, htf, er, volRatio, sup, res, candle: last, version: ENGINE_VERSION
+    };
+  }
+};
+
+// Бэктест движка без заглядывания вперёд: на шаге i доступны только свечи ≤ i.
+// c1 — минутные свечи; рабочий ТФ M1, старший — агрегированный M5. Делит выборку на in-sample (70%) и out-of-sample (30%).
+function engineBacktest(c1, exp = 5) {
+  const c5 = aggregate(c1, 5), start = Engine.MIN + 300, split = Math.floor(start + 0.7 * (c1.length - start));
+  const seg = () => ({ signals: 0, win: 0, loss: 0, refund: 0 }), out = { ins: seg(), oos: seg(), from: start, split, to: c1.length };
+  let j = 0;
+  for (let i = start; i < c1.length - exp; i++) {
+    const endT = c1[i].t + 60000;
+    while (j < c5.length && c5[j].t + 300000 <= endT) j++;
+    const r = Engine.analyze(c1.slice(i - 149, i + 1), c5.slice(Math.max(0, j - 100), j));
+    if (r.dir === 'none') continue;
+    const res = Resolve.fromCandles({ dir: r.dir, entryT: endT, exp }, c1.slice(i + 1, i + 1 + exp));
+    if (!res) continue;
+    const s = i < split ? out.ins : out.oos;
+    s.signals++; s[res.outcome]++;
+    i += exp;
+  }
+  return out;
+}
+
 function aggregate(c1, minutes) {
   const step = minutes * 60000, out = [];
   let cur = null, n = 0;
@@ -402,6 +524,26 @@ const I18N = {
     admViaGit: 'Изменения сохранятся для всех после «Копировать settings.json» → GitHub → Commit (блок внизу).',
     admSaveTitle: 'Сохранить настройки для всех', badId: 'Неверный ID', granted: 'Доступ выдан', grantedDraft: 'Добавлено — сохраните settings.json', revoked: 'Доступ снят',
     sentBot: 'Отправлено ботом', sendFail: 'Бот не отправил ({e})',
+    brokerNote: 'Проверьте, что этот актив (без OTC) есть у брокера; его цена может отличаться от биржевой.',
+    sec: 'с', minShort: 'мин', ago: 'назад', wsOn: 'онлайн (WebSocket)', wsConn: 'подключение', wsRecon: 'переподключение', wsOff: 'REST', keyOk: 'ключ есть', noKey: 'нет ключа',
+    sysStatus: 'Статус системы', instCount: 'Инструменты: форекс {forex} · крипта {crypto} · сырьё {commod} · акции {stocks}', otcNo: 'нет котировок',
+    lastScan: 'Последний скан: {n} активов за {s} с · ок {ok} · ошибок {err} · устарело {stale} · котировки ~{f} мс · анализ ~{a} мс/актив',
+    wsStats: 'получено свечей {c}, пропусков {g}', regAt: 'список обновлён {t}', regRefresh: 'Обновить список инструментов',
+    found: 'Найден сигнал', proxy: 'курс через USDT', tf: 'Таймфрейм', qualityL: 'Качество', q_high: 'высокое', q_medium: 'среднее', q_low: 'низкое', agree: 'согласованность',
+    formed: 'Сформирован', quoteAge: 'котировка', whyPro: 'Что поддерживает', whyCon: 'Что противоречит',
+    passedFilters: 'Прошёл фильтры: волатильность в норме, рынок не «пилит», до встречного уровня есть запас, противоречий меньше 40%.',
+    qualityNote: 'Качество — это число совпавших проверяемых факторов, а не вероятность выигрыша. Реальную точность смотрите в «Бэктесте» и «Истории».',
+    otcTitle: 'OTC: котировки недоступны', otcText: 'OTC-цену рисует сам брокер внутри своей платформы, публичного источника этих котировок нет. Поэтому OTC-активы не показываются как доступные и не анализируются — сигналы по ним были бы выдумкой. Ищите сигналы на обычном рынке (не OTC) и открывайте сделку на том же активе без пометки OTC.',
+    findProgress: 'Сканирую {done}/{total} · ок {ok} · ошибок {err} · устарело {stale}', noCond: 'Сейчас нет подходящих условий. Продолжаю мониторинг рынка.',
+    checked: 'проверено активов: {n}', monitoring: 'следующая проверка в {t} МСК', findBtn: 'Найти сигнал', findHint: 'Проверяю весь рынок и выдаю один лучший сигнал',
+    mode: 'Режим', mode_quick: '⚡ Быстрый', mode_full: '🔭 Полный', mode_forex: '💱 Форекс', mode_crypto: '₿ Крипта', mode_commod: '🥇 Сырьё', mode_stocks: '📈 Акции', mode_otc: 'OTC', mode_auto: '🤖 Авто',
+    manual: 'Выбрать актив вручную', btTitle: 'Бэктест', btHow: 'Прогон правил на последних 1000 реальных минутных свечах Binance (~16 ч): 70% — выборка для настройки (in-sample), последние 30% — проверка на новых данных (out-of-sample). Никаких подставных чисел.',
+    btRun: 'Запустить бэктест', btCandles: '{n} свечей ≈ {h} ч', btIns: 'Движок v2 · in-sample', btOos: 'Движок v2 · out-of-sample', btClassic: 'Правила v1 (BB+RSI)',
+    btNote: 'Если винрейт ниже безубыточного или выборка маленькая (меньше ~100 сделок) — преимущества не доказано.',
+    marketReg: 'рынок', breakdown: 'Разбивка', dim_asset: 'Актив', dim_market: 'Рынок', dim_tf: 'ТФ', dim_dir: 'Направление', dim_hour: 'Час (МСК)', dim_algo: 'Версия',
+    unverified: 'не проверено', bbBelow: 'ниже нижней', bbAbove: 'выше верхней',
+    f_ema: 'EMA 9/21: разница {v}%', f_htf: 'Тренд старшего ТФ: {v}', f_macd: 'Гистограмма MACD {v}', f_macdSlope: 'Импульс MACD меняется на {v}',
+    f_rsiExt: 'RSI {v} — зона разворота', f_rsiMom: 'RSI {v} — импульс', f_bb: 'Цена {v} полосы Боллинджера', f_support: 'Рядом поддержка {v}', f_resist: 'Рядом сопротивление {v}',
     chartTitle: '1 мин · 60 свечей · Bollinger(20, 2)',
     aiAdmTitle: 'ИИ (OpenRouter)', aiAdmHas: 'Ключ сохранён на этом телефоне — ИИ работает у вас.',
     aiAdmHow: 'Вставьте ключ OpenRouter (Credit limit = 0). Он хранится только на этом телефоне: в публичный код ключ класть нельзя — GitHub его найдёт, и OpenRouter отключит ключ. Пользователям ИИ станет доступен через Worker (README, раздел 7).',
@@ -498,6 +640,26 @@ const I18N = {
     admViaGit: 'Changes apply for everyone after “Copy settings.json” → GitHub → Commit (block below).',
     admSaveTitle: 'Save settings for everyone', badId: 'Invalid ID', granted: 'Access granted', grantedDraft: 'Added — save settings.json', revoked: 'Access revoked',
     sentBot: 'Sent by the bot', sendFail: 'Bot failed ({e})',
+    brokerNote: 'Check that this asset (not OTC) exists at your broker; its price may differ from the exchange.',
+    sec: 's', minShort: 'min', ago: 'ago', wsOn: 'online (WebSocket)', wsConn: 'connecting', wsRecon: 'reconnecting', wsOff: 'REST', keyOk: 'key set', noKey: 'no key',
+    sysStatus: 'System status', instCount: 'Instruments: forex {forex} · crypto {crypto} · commodities {commod} · stocks {stocks}', otcNo: 'no quotes',
+    lastScan: 'Last scan: {n} assets in {s} s · ok {ok} · errors {err} · stale {stale} · quotes ~{f} ms · analysis ~{a} ms/asset',
+    wsStats: 'candles received {c}, gaps {g}', regAt: 'list updated {t}', regRefresh: 'Refresh instrument list',
+    found: 'Signal found', proxy: 'rate via USDT', tf: 'Timeframe', qualityL: 'Quality', q_high: 'high', q_medium: 'medium', q_low: 'low', agree: 'agreement',
+    formed: 'Formed', quoteAge: 'quote', whyPro: 'What supports it', whyCon: 'What contradicts it',
+    passedFilters: 'Passed filters: normal volatility, not choppy, room to the opposite level, contradictions under 40%.',
+    qualityNote: 'Quality is the count of matched verifiable factors, not a win probability. See real accuracy in Backtest and History.',
+    otcTitle: 'OTC: quotes unavailable', otcText: 'OTC prices are generated by the broker inside its platform; there is no public source of these quotes. So OTC assets are not shown as available and are not analysed — signals on them would be made up. Look for signals on the regular market (not OTC) and trade the same asset without the OTC label.',
+    findProgress: 'Scanning {done}/{total} · ok {ok} · errors {err} · stale {stale}', noCond: 'No suitable conditions right now. Continuing to monitor the market.',
+    checked: 'assets checked: {n}', monitoring: 'next check at {t} MSK', findBtn: 'Find signal', findHint: 'Scanning the whole market and returning one best signal',
+    mode: 'Mode', mode_quick: '⚡ Quick', mode_full: '🔭 Full', mode_forex: '💱 Forex', mode_crypto: '₿ Crypto', mode_commod: '🥇 Commodities', mode_stocks: '📈 Stocks', mode_otc: 'OTC', mode_auto: '🤖 Auto',
+    manual: 'Pick an asset manually', btTitle: 'Backtest', btHow: 'Runs the rules on the latest 1000 real 1-minute Binance candles (~16 h): 70% in-sample, the last 30% out-of-sample on unseen data. No made-up numbers.',
+    btRun: 'Run backtest', btCandles: '{n} candles ≈ {h} h', btIns: 'Engine v2 · in-sample', btOos: 'Engine v2 · out-of-sample', btClassic: 'Rules v1 (BB+RSI)',
+    btNote: 'If the win rate is below break-even or the sample is small (under ~100 trades), no edge is proven.',
+    marketReg: 'market', breakdown: 'Breakdown', dim_asset: 'Asset', dim_market: 'Market', dim_tf: 'TF', dim_dir: 'Direction', dim_hour: 'Hour (MSK)', dim_algo: 'Version',
+    unverified: 'unverified', bbBelow: 'below the lower', bbAbove: 'above the upper',
+    f_ema: 'EMA 9/21: difference {v}%', f_htf: 'Higher-TF trend: {v}', f_macd: 'MACD histogram {v}', f_macdSlope: 'MACD momentum change {v}',
+    f_rsiExt: 'RSI {v} — reversal zone', f_rsiMom: 'RSI {v} — momentum', f_bb: 'Price {v} Bollinger band', f_support: 'Support nearby {v}', f_resist: 'Resistance nearby {v}',
     chartTitle: '1 min · 60 candles · Bollinger(20, 2)',
     aiAdmTitle: 'AI (OpenRouter)', aiAdmHas: 'Key saved on this phone — AI works for you.',
     aiAdmHow: 'Paste your OpenRouter key (Credit limit = 0). It is stored only on this phone: a key in public code gets found by GitHub and disabled by OpenRouter. For users, AI needs the Worker (README, section 7).',
@@ -596,7 +758,7 @@ function nyParts(d) {
   return { wd: p.weekday, mins: (+p.hour % 24) * 60 + +p.minute };
 }
 function isOpen(cls, d = new Date()) {
-  if (cls === 'crypto') return true;
+  if (cls === 'crypto' || cls === 'commod') return true;
   if (cls === 'forex') { const w = d.getUTCDay(); return w >= 1 && w <= 5; }
   const p = nyParts(d);
   return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(p.wd) && p.mins >= 570 && p.mins < 960;
@@ -693,6 +855,217 @@ const Store = {
 // оценки ИИ хранятся отдельно от сигналов и не попадают в их статистику
 const AIStore = Object.create(Store, { KEY: { value: 'ta_ai_v1' } });
 
+/* ═════════════════════════ РЕЕСТР ИНСТРУМЕНТОВ ═════════════════════════
+   Список строится автоматически из того, что реально отдаёт источник. OTC-котировок у публичных
+   источников нет — такие инструменты не показываются как доступные. */
+const TF = {
+  M1: { bin: '1m', td: '1min', ms: 60000, higher: 'M5', exps: [1, 3, 5] },
+  M5: { bin: '5m', td: '5min', ms: 300000, higher: 'M15', exps: [5, 10, 15] },
+  M15: { bin: '15m', td: '15min', ms: 900000, higher: 'H1', exps: [15, 30] },
+  H1: { bin: '1h', td: '1h', ms: 3600000, higher: null, exps: [60] }
+};
+const STABLES = new Set(['USDC', 'FDUSD', 'TUSD', 'USDP', 'DAI', 'USD1', 'RLUSD', 'USDE', 'PYUSD', 'XUSD', 'U', 'BFUSD', 'AEUR', 'EURI', 'EUR', 'USDS', 'BUSD']);
+const TOKENIZED_STOCK = /^(SNDK|CRCL|INTC|SOXL|SPCX|MSTR|GOOGL|MU|AAPL|TSLA|NVDA|AMZN|META|MSFT|COIN|HOOD|QQQ|SPY)B$/;
+const FX_PROXIES = { EURUSDT: ['EURUSD', 'EUR/USD', ['€', '$']], USDTTRY: ['USDTRY', 'USD/TRY', ['$', '₺']], USDTBRL: ['USDBRL', 'USD/BRL', ['$', 'R$']],
+  USDTZAR: ['USDZAR', 'USD/ZAR', ['$', 'R']], USDTMXN: ['USDMXN', 'USD/MXN', ['$', '₱']], USDTARS: ['USDARS', 'USD/ARS', ['$', 'A']],
+  USDTCOP: ['USDCOP', 'USD/COP', ['$', 'C']], USDTIDR: ['USDIDR', 'USD/IDR', ['$', 'Rp']], USDTKZT: ['USDKZT', 'USD/KZT', ['$', '₸']] };
+const COMMODS = { PAXGUSDT: ['XAUPAXG', 'Золото · PAXG', ['Au', '$']], XAUTUSDT: ['XAUXAUT', 'Золото · XAUT', ['Au', '$']] };
+const REG = { loaded: false, at: 0, error: null, status: {} }; // status[id] = { s: 'ok' | 'stale' | 'unavailable', at }
+
+function registerAsset(a) {
+  if (ASSET[a.id]) { Object.assign(ASSET[a.id], { vol: a.vol, dec: a.dec ?? ASSET[a.id].dec }); return ASSET[a.id]; }
+  ASSETS.push(a); ASSET[a.id] = a; return a;
+}
+const decOf = tick => Math.max(0, Math.round(-Math.log10(+tick || 0.01)));
+async function loadRegistry(force) {
+  const cached = LS.get('ta_reg', null);
+  if (!force && cached && Date.now() - cached.at < 3600e3) { cached.list.forEach(registerAsset); REG.loaded = true; REG.at = cached.at; return; }
+  REG.error = null;
+  try {
+    const t24 = await fetchJSON(BINANCE[0] + '/api/v3/ticker/24hr?type=MINI', 15000);
+    const vol = Object.fromEntries(t24.map(x => [x.symbol, +x.quoteVolume]));
+    const crypto = t24.filter(x => x.symbol.endsWith('USDT') && +x.quoteVolume > 0).map(x => x.symbol)
+      .filter(s => { const b = s.slice(0, -4); return !STABLES.has(b) && !TOKENIZED_STOCK.test(b) && !FX_PROXIES[s] && !COMMODS[s]; })
+      .sort((a, b) => vol[b] - vol[a]).slice(0, 40);
+    const want = [...Object.keys(FX_PROXIES), ...Object.keys(COMMODS), ...crypto].filter(s => vol[s] != null);
+    const info = await fetchJSON(BINANCE[0] + '/api/v3/exchangeInfo?symbols=' + encodeURIComponent(JSON.stringify(want)), 15000);
+    const list = [];
+    for (const s of info.symbols) {
+      if (s.status !== 'TRADING') continue;
+      const tick = (s.filters.find(f => f.filterType === 'PRICE_FILTER') || {}).tickSize, dec = Math.min(8, decOf(tick));
+      if (FX_PROXIES[s.symbol]) { const [id, name, ic] = FX_PROXIES[s.symbol]; list.push({ id, name, cls: 'forex', src: 'binance', sym: s.symbol, dec, pip: Math.pow(10, -dec + 1), ic, vol: vol[s.symbol], proxy: true }); }
+      else if (COMMODS[s.symbol]) { const [id, name, ic] = COMMODS[s.symbol]; list.push({ id, name, cls: 'commod', src: 'binance', sym: s.symbol, dec: Math.min(dec, 2), ic, vol: vol[s.symbol], proxy: true }); }
+      else { const b = s.baseAsset; list.push({ id: b + 'USD', name: b + '/USD', cls: 'crypto', src: 'binance', sym: s.symbol, dec: Math.min(dec, 6), ic: [b.slice(0, 2), '$'], vol: vol[s.symbol] }); }
+    }
+    list.forEach(registerAsset);
+    REG.at = Date.now(); REG.loaded = true;
+    LS.set('ta_reg', { at: REG.at, list });
+  } catch (e) { REG.error = e.message; REG.loaded = true; }
+}
+const regCounts = () => {
+  const c = { forex: 0, crypto: 0, commod: 0, stocks: 0 };
+  for (const a of ASSETS) if (a.src === 'binance' || tdKeyOk()) c[a.cls]++;
+  return c;
+};
+const setStatus = (id, s) => { REG.status[id] = { s, at: Date.now() }; };
+
+/* ═════════════════════════ ДАННЫЕ ПО ТАЙМФРЕЙМАМ + WEBSOCKET ═════════════════════════ */
+const C2 = new Map(); // `${id}|${tf}` → { data, ts, gap, src }
+const METRICS = LS.get('ta_metrics', null) || {};
+async function getTF(a, tfKey) {
+  const key = a.id + '|' + tfKey, e = C2.get(key), tf = TF[tfKey], now = Date.now();
+  const wsFresh = e && e.src === 'ws' && !e.gap && WS.status === 'on' && now - e.ts < tf.ms + 15000;
+  const ttl = a.src === 'td' ? 60000 : tfKey === S.tf ? 5000 : 60000;
+  if (e && !e.gap && (wsFresh || now - e.ts < ttl)) return e.data;
+  const t0 = performance.now();
+  let data;
+  if (a.src === 'binance') data = await binanceKlines(a.sym, tf.bin, { limit: '160' });
+  else data = await tdSeries(a.sym, tf.td, { outputsize: '160' });
+  METRICS.fetchMs = Math.round(performance.now() - t0);
+  C2.set(key, { data, ts: Date.now(), gap: false, src: 'rest' });
+  return data;
+}
+
+// WebSocket Binance: закрытые свечи рабочего ТФ для отслеживаемых активов; heartbeat, переподключение
+// с exponential backoff + jitter, после переподключения подписки восстанавливаются (они в URL).
+const WS = { sock: null, key: '', status: 'off', lastMsg: 0, retries: 0, timer: null, candles: 0, gaps: 0 };
+function wsSymbols() { return scanSet('quick').filter(a => a.src === 'binance'); }
+function wsConnect() {
+  if (!('WebSocket' in window)) return;
+  const assets = wsSymbols(), tf = TF[S.tf], key = S.tf + ':' + assets.map(a => a.sym).join(',');
+  if (!assets.length) return;
+  if (WS.sock && WS.key === key && (WS.status === 'on' || WS.status === 'connecting')) return;
+  wsClose(true);
+  const bySym = Object.fromEntries(assets.map(a => [a.sym.toLowerCase(), a]));
+  const url = 'wss://data-stream.binance.vision/stream?streams=' + Object.keys(bySym).map(s => s + '@kline_' + tf.bin).join('/');
+  WS.key = key; WS.status = 'connecting';
+  const sock = new WebSocket(url); WS.sock = sock;
+  sock.onopen = () => { WS.status = 'on'; WS.retries = 0; WS.lastMsg = Date.now(); if (S.screen === 'home' && !(S.find && S.find.running)) render(); };
+  sock.onmessage = ev => {
+    WS.lastMsg = Date.now();
+    let m; try { m = JSON.parse(ev.data); } catch { return; }
+    const k = m.data && m.data.k; if (!k || !k.x) return; // берём только закрытые свечи
+    const a = bySym[(m.data.s || '').toLowerCase()]; if (!a) return;
+    const e = C2.get(a.id + '|' + S.tf); if (!e) return;
+    const last = e.data[e.data.length - 1], c = { t: k.t, o: +k.o, h: +k.h, l: +k.l, c: +k.c, ct: k.T + 1 };
+    if (c.t === last.t) return;
+    if (c.t === last.t + tf.ms) { e.data = e.data.concat(c).slice(-200); e.ts = Date.now(); e.src = 'ws'; WS.candles++; }
+    else if (c.t > last.t + tf.ms) { e.gap = true; WS.gaps++; } // пропущенные свечи → следующий запрос заберёт историю через REST
+  };
+  sock.onclose = () => { if (WS.sock === sock) wsScheduleReconnect(); };
+  sock.onerror = () => { try { sock.close(); } catch { } };
+}
+function wsClose(silent) {
+  clearTimeout(WS.timer);
+  if (WS.sock) { const s = WS.sock; WS.sock = null; try { s.close(); } catch { } }
+  if (!silent) WS.status = 'off';
+}
+function wsScheduleReconnect() {
+  WS.sock = null; WS.status = 'reconnecting';
+  const delay = Math.min(30000, 1000 * Math.pow(2, WS.retries)) * (0.5 + Math.random()); // backoff + jitter
+  WS.retries++;
+  clearTimeout(WS.timer); WS.timer = setTimeout(() => { WS.key = ''; wsConnect(); }, delay);
+}
+function wsHeartbeat() {
+  if (WS.status === 'on' && Date.now() - WS.lastMsg > 20000 && WS.sock) { try { WS.sock.close(); } catch { } } // поток молчит — переподключаемся
+}
+
+/* ═════════════════════════ СКАНЕР «НАЙТИ СИГНАЛ» ═════════════════════════ */
+const MODES = ['quick', 'full', 'forex', 'crypto', 'commod', 'stocks', 'otc', 'auto'];
+function scanSet(mode) {
+  const avail = ASSETS.filter(a => isOpen(a.cls) && !assetLocked(a) && (a.src === 'binance' || (tdKeyOk() && (a.cls !== 'stocks' || S.stockRT === 'ok'))));
+  const bin = avail.filter(a => a.src === 'binance');
+  const topCrypto = bin.filter(a => a.cls === 'crypto').sort((x, y) => (y.vol || 0) - (x.vol || 0));
+  switch (mode) {
+    case 'quick': case 'auto': return [...bin.filter(a => a.cls !== 'crypto'), ...topCrypto.slice(0, 15)];
+    case 'full': return [...bin, ...avail.filter(a => a.src === 'td')];
+    case 'otc': return [];
+    default: return avail.filter(a => a.cls === mode);
+  }
+}
+async function pool(items, n, fn) {
+  let i = 0;
+  const worker = async () => { while (i < items.length) { const k = i++; await fn(items[k], k); } };
+  await Promise.all(Array.from({ length: Math.min(n, items.length) }, worker));
+}
+const QRANK = { high: 2, medium: 1, low: 0 };
+const memo = new Map(); // кэш результатов анализа: id|tf|время последней свечи
+async function analyzeOne(a, tfKey) {
+  const tf = TF[tfKey], t0 = performance.now();
+  try {
+    const [c, ch] = await Promise.all([getTF(a, tfKey), tf.higher ? getTF(a, tf.higher).catch(() => null) : null]);
+    const t1 = performance.now(), last = c[c.length - 1], now = Date.now();
+    const lag = (a.src === 'td' ? 240000 : 90000);
+    if (!last || last.t + tf.ms < now - tf.ms - lag) { setStatus(a.id, 'stale'); return { a, status: 'stale' }; }
+    const mk = a.id + '|' + tfKey + '|' + last.t + '|' + (ch ? ch[ch.length - 1].t : 0);
+    let r = memo.get(mk);
+    if (!r) { r = Engine.analyze(c.slice(-150), ch ? ch.slice(-100) : null); memo.set(mk, r); if (memo.size > 500) memo.delete(memo.keys().next().value); }
+    setStatus(a.id, 'ok');
+    return { a, status: 'ok', r, c1: tfKey === 'M1' ? c : null, fetchMs: t1 - t0, anaMs: performance.now() - t1, ageMs: now - (last.t + tf.ms), sigClose: last.t + tf.ms };
+  } catch (e) {
+    setStatus(a.id, 'unavailable');
+    return { a, status: e.message === 'rate' ? 'rate' : 'error' };
+  }
+}
+// Защита от повторного запуска: пока идёт скан, новый вызов возвращает тот же промис.
+function findSignal(mode, silent) {
+  if (S.find && S.find.running) return S.find.promise;
+  const clickT = performance.now(), set = scanSet(mode === 'auto' ? 'quick' : mode);
+  const F = S.find = { running: true, mode, total: set.length, done: 0, ok: 0, err: 0, stale: 0, results: [], silent };
+  if (!silent) render();
+  F.promise = (async () => {
+    const onDone = res => {
+      F.results.push(res); F.done++;
+      if (res.status === 'ok') F.ok++; else if (res.status === 'stale') F.stale++; else F.err++;
+      const el = document.getElementById('findProgress'); if (el) el.textContent = t('findProgress', F);
+    };
+    await pool(set.filter(a => a.src === 'binance'), 6, async a => onDone(await analyzeOne(a, S.tf)));
+    await pool(set.filter(a => a.src === 'td'), 1, async a => onDone(await analyzeOne(a, S.tf))); // лимит Twelve Data
+    const cands = F.results.filter(x => x.status === 'ok' && x.r.dir !== 'none')
+      .sort((x, y) => QRANK[y.r.quality] - QRANK[x.r.quality] || y.r.score - x.r.score || x.r.con - y.r.con || x.ageMs - y.ageMs);
+    const oks = F.results.filter(x => x.status === 'ok');
+    F.metrics = {
+      totalMs: Math.round(performance.now() - clickT), n: F.total, ok: F.ok, err: F.err, stale: F.stale, cands: cands.length,
+      fetchMs: oks.length ? Math.round(oks.reduce((s, x) => s + x.fetchMs, 0) / oks.length) : null,
+      anaMs: oks.length ? +(oks.reduce((s, x) => s + x.anaMs, 0) / oks.length).toFixed(1) : null, at: Date.now()
+    };
+    Object.assign(METRICS, { last: F.metrics }); LS.set('ta_metrics', METRICS);
+    F.running = false;
+    const best = cands[0];
+    if (best) {
+      const key = best.a.id + S.tf + best.sigClose, keys = LS.get('ta_sig_keys', []);
+      F.best = best; F.fresh = false;
+      // повтор: тот же актив/ТФ/направление, по которому ещё не подведён итог, — не новый сигнал
+      const dup = Store.all().find(r => r.status === 'pending' && r.assetId === best.a.id && r.tf === S.tf && r.dir === best.r.dir);
+      if (dup) F.best.recId = dup.id;
+      else if (!keys.includes(key)) { keys.push(key); LS.set('ta_sig_keys', keys.slice(-300)); F.best.recId = recordV2(best); F.fresh = true; }
+      else F.best.recId = (Store.all().find(r => r.key === key) || {}).id;
+      if (silent && F.fresh) showBanner(best.a, best.r.dir);
+      haptic('success');
+    } else {
+      F.best = null;
+      if (mode !== 'otc') S.monitor = true; // «Продолжаю мониторинг рынка»
+    }
+    if (S.screen === 'home') render();
+    return F.best;
+  })();
+  return F.promise;
+}
+function recordV2(best) {
+  const a = best.a, r = best.r, id = Store.nextNo(), exp = S.fexp;
+  const lvl = r.lean === 'up' ? (r.res != null ? { type: 'high', dist: r.res - r.price, level: r.res } : null) : (r.sup != null ? { type: 'low', dist: r.price - r.sup, level: r.sup } : null);
+  Store.add({
+    id, ts: Date.now(), key: a.id + S.tf + best.sigClose, assetId: a.id, name: a.name, cls: a.cls, market: 'regular', proxy: !!a.proxy,
+    dir: r.dir, exp, tf: S.tf, algo: r.version, quality: r.quality, score: r.score,
+    sigClose: best.sigClose, entryT: best.sigClose, deadline: best.sigClose + 60000, price: r.price, close: r.price, rsi: r.rsi,
+    trend: r.htf ? r.htf.dir : (r.e9 > r.e21 ? 'up' : 'down'), level: lvl || { type: 'high', dist: null }, move: best.c1 ? Indicators.move5(best.c1) : null,
+    reasons: { pro: r.factors.filter(f => Math.sign(f.vote) === (r.dir === 'up' ? 1 : -1)).map(f => f.key), con: r.factors.filter(f => Math.sign(f.vote) === (r.dir === 'up' ? -1 : 1)).map(f => f.key) },
+    status: 'pending', entry: null, exit: null, posted: false, resultPosted: false
+  });
+  S.currentId = id;
+  return id;
+}
+
 /* ═════════════════════════ TELEGRAM ═════════════════════════ */
 const tg = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initData !== undefined ? window.Telegram.WebApp : null;
 const tgUser = tg && tg.initDataUnsafe && tg.initDataUnsafe.user;
@@ -747,7 +1120,7 @@ function applyTheme() {
 /* ═════════════════════════ СОСТОЯНИЕ И УТИЛИТЫ ═════════════════════════ */
 const S = {
   lang: LS.get('ta_lang', CONFIG.DEFAULT_LANG) === 'en' ? 'en' : 'ru',
-  screen: 'select', cls: 'forex', assetId: 'EURUSD', exp: 5,
+  screen: 'home', cls: 'forex', assetId: 'EURUSD', exp: 5, mode: 'quick', tf: 'M1', fexp: 1, aiV2: {}, bdim: 'asset',
   an: null, currentId: null, hf: { cls: 'all', period: 'd7' },
   stockRT: 'unknown', ai: {}, aiLean: {}
 };
@@ -1216,8 +1589,8 @@ const pct = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
 
 /* ═════════════════════════ ЭКРАНЫ ═════════════════════════ */
 function renderSteps() {
-  const st = { select: 1, signal: 1, scan: 1, result: 2, history: 3 }[S.screen] || 0;
-  $('#steps').innerHTML = [['select', 1, 's1'], ['result', 2, 's2'], ['history', 3, 's3']].map(([sc, n, k], i) =>
+  const st = { home: 1, select: 1, signal: 1, scan: 1, result: 2, history: 3 }[S.screen] || 0;
+  $('#steps').innerHTML = [['home', 1, 's1'], ['result', 2, 's2'], ['history', 3, 's3']].map(([sc, n, k], i) =>
     (i ? '<span class="arrow">→</span>' : '') + `<button class="step ${st === n ? 'on' : ''}" data-go="${sc}"><i>${n}</i>${t(k)}</button>`).join('');
 }
 function renderFoot() {
@@ -1266,6 +1639,165 @@ function vSelect() {
   <p class="note center" style="margin:6px 0 0">${t('watchNote')}</p>
   ${tg ? '' : `<p class="note center mt">${t('noTg')}</p>`}`;
 }
+
+/* ═════════════════════════ ГЛАВНЫЙ ЭКРАН v2 ═════════════════════════ */
+const fmtAgo = ms => ms < 60000 ? Math.round(ms / 1000) + ' ' + t('sec') : Math.round(ms / 60000) + ' ' + t('minShort');
+function factorLine(f, dir) {
+  const side = f.vote === 0 ? 'neu' : Math.sign(f.vote) === (dir === 'up' ? 1 : -1) ? 'pro' : 'con';
+  const v = typeof f.val === 'number' ? (Math.abs(f.val) < 1 ? String(Number(f.val.toPrecision(3))) : f.val.toFixed(1)) : f.val;
+  const vv = f.key === 'htf' ? t({ up: 'tUp', down: 'tDown', flat: 'tFlat' }[f.val]) : f.key === 'bb' ? t(f.val === 'below' ? 'bbBelow' : 'bbAbove') : v;
+  return { side, text: t('f_' + f.key, { v: vv }) };
+}
+function statusPanel() {
+  const m = METRICS.last, c = regCounts(), now = Date.now();
+  const ws = { on: '🟢 ' + t('wsOn'), connecting: '🟡 ' + t('wsConn'), reconnecting: '🟠 ' + t('wsRecon'), off: '⚪ ' + t('wsOff') }[WS.status];
+  return `<div class="card"><div class="label">${t('sysStatus')}</div>
+    <p style="margin:0 0 4px">Binance: ${ws} · Twelve Data: ${tdKeyOk() ? '🟢 ' + t('keyOk') : '⚪ ' + t('noKey')}</p>
+    <p class="note" style="margin:0 0 4px">${t('instCount', c)}${REG.error ? ' · <span class="warn">' + esc(REG.error) + '</span>' : ''} · OTC: ${t('otcNo')}</p>
+    ${m ? `<p class="note" style="margin:0">${t('lastScan', { n: m.n, s: (m.totalMs / 1000).toFixed(1), ok: m.ok, err: m.err, stale: m.stale, f: m.fetchMs ?? '—', a: m.anaMs ?? '—' })} · <span data-ago="${m.at}"></span></p>` : ''}
+    <p class="note" style="margin:4px 0 0">WS: ${t('wsStats', { c: WS.candles, g: WS.gaps })} · ${REG.at ? t('regAt', { t: hm(new Date(REG.at)) }) : ''}</p>
+    <button class="chip mt" data-act="regrefresh">🔄 ${t('regRefresh')}</button></div>`;
+}
+function bestCard(F) {
+  const b = F.best, a = b.a, r = b.r, rec = b.recId ? Store.get(b.recId) : null;
+  const lines = r.factors.map(f => factorLine(f, r.dir));
+  const pro = lines.filter(l => l.side === 'pro'), con = lines.filter(l => l.side === 'con');
+  return `<div class="dir ${r.dir}">
+      <div class="label" style="color:var(--text)">⚡ ${t('found')}</div>
+      <div class="dir-row"><div class="orb">${ARROW[r.dir]}</div><div>
+        <div class="big" style="font-size:30px">${t(r.dir)}</div>
+        <div class="note">${icon(a)} <b style="color:var(--text)">${esc(a.name)}</b>${a.proxy ? ' · ' + t('proxy') : ''}</div>
+        <div class="timer" data-deadline="${b.sigClose + 60000}"></div>
+      </div></div>
+      <table class="t mt" style="text-align:left"><tr><td>${t('tf')}</td><td><b>${S.tf}</b> · ${t('expiry')}: <b>${rec ? rec.exp : S.fexp} ${t('min')}</b></td></tr>
+        <tr><td>${t('qualityL')}</td><td><b>${t('q_' + r.quality)}</b> · ${t('agree')} ${r.score}/100</td></tr>
+        <tr><td>${t('formed')}</td><td>${hms(new Date(b.sigClose))} МСК · ${t('quoteAge')} ${fmtAgo(b.ageMs)}</td></tr>
+        <tr><td>${t('price')}</td><td>${fp(a, r.price)}</td></tr></table>
+      <div class="instr">${esc(t('instr', { dir: t(r.dir), n: rec ? rec.exp : S.fexp, asset: a.name }))}<div class="note" style="margin-top:4px">${t('brokerNote')}</div></div>
+    </div>
+    <div class="card"><div class="label">${t('whyPro')}</div><ul class="checks">${pro.map(l => `<li><span class="ok">✓</span><span>${esc(l.text)}</span></li>`).join('')}</ul>
+      ${con.length ? `<div class="label mt">${t('whyCon')}</div><ul class="checks">${con.map(l => `<li><span class="no">✗</span><span>${esc(l.text)}</span></li>`).join('')}</ul>` : ''}
+      <p class="note mt" style="margin-bottom:0">${t('passedFilters')}</p>
+      <p class="note warn" style="margin:6px 0 0">${t('qualityNote')}</p></div>
+    ${chartSvg(b.c1) ? `<div class="card" style="padding:10px">${chartSvg(b.c1)}</div>` : ''}
+    <div class="card"><div class="label">${t('aiTitle')}</div>${aiV2Html(b)}</div>
+    ${isAdmin && rec ? `<div class="card"><div class="label">${t('adminOnly')} · #${rec.id}</div><div class="row"><button class="btn sm" data-act="post" data-id="${rec.id}">${t('sendCh')}</button><button class="btn ghost sm" data-act="copy" data-id="${rec.id}">${t('copy')}</button></div>${rec.posted ? `<p class="note mt" style="margin-bottom:0">✓ ${t('inCh')}</p>` : ''}</div>` : ''}
+    <div class="row"><button class="btn ghost" data-go="result">${t('toResult')}</button><button class="btn ghost" data-act="ref">${t('where')}</button></div>`;
+}
+function aiV2Html(b) {
+  if (isLocked('ai')) return lockCard();
+  if (!aiKey() && !CONFIG.WORKER_URL) return `<p class="note" style="margin:0">${isAdmin ? t('aiKey') : t('aiErr')}</p>`;
+  const st = S.aiV2[b.recId || b.a.id];
+  if (!st) return `<button class="btn ghost sm" data-act="aiv2">${t('aiBtn')}</button>`;
+  if (st.loading) return `<div class="spin"></div><p class="note center">${t('aiLoading')}</p>`;
+  if (st.error) return `<p class="warn">${t('aiErr')}</p><button class="btn ghost sm" data-act="aiv2">${t('retry')}</button>`;
+  return `<div class="ai">${esc(st.text)}</div><p class="note mt">${t('aiNote')}</p>`;
+}
+async function aiExplainV2() {
+  const b = S.find && S.find.best; if (!b) return;
+  const k = b.recId || b.a.id, r = b.r;
+  S.aiV2[k] = { loading: true }; render();
+  const lines = r.factors.map(f => factorLine(f, r.dir));
+  const facts = {
+    asset: b.a.name, timeframe: S.tf, direction: { up: 'UP', down: 'DOWN' }[r.dir], quality: r.quality, agreement_score: r.score,
+    supporting: lines.filter(l => l.side === 'pro').map(l => l.text), contradicting: lines.filter(l => l.side === 'con').map(l => l.text),
+    filters_passed: ['volatility in normal range (ATR ratio ' + r.volRatio.toFixed(2) + ')', 'trend efficiency ' + (r.er ?? 0).toFixed(2) + ' (not pure noise)', 'room to opposite level ≥ 0.3 ATR', 'contradictions below 40% of support weight'],
+    rsi14: r.rsi.toFixed(1), atr: r.atr, ema9_vs_21_pct: ((r.e9 - r.e21) / r.e21 * 100).toFixed(3)
+  };
+  const sys = S.lang === 'ru'
+    ? 'Ты аналитик. По готовым расчётам объясни простым русским языком в 4–6 предложениях: какие факторы поддерживают направление, какие ему противоречат и почему кандидат прошёл фильтры. Не пересчитывай индикаторы, не меняй направление, не называй вероятность выигрыша, не давай гарантий. Закончи напоминанием о риске. Без markdown.'
+    : 'You are an analyst. Using the prepared calculations, explain in 4–6 plain sentences which factors support the direction, which contradict it, and why the candidate passed the filters. Do not recompute indicators, do not change direction, do not state a win probability, no guarantees. End with a risk reminder. No markdown.';
+  const { text } = await aiChat(sys, JSON.stringify(facts));
+  S.aiV2[k] = text ? { text: text.replace(/[*#`]/g, '').trim().slice(0, 1500) } : { error: true };
+  if (S.screen === 'home') render();
+}
+function vHome() {
+  const F = S.find, exps = TF[S.tf].exps;
+  if (!exps.includes(S.fexp)) S.fexp = exps[0];
+  let body = '';
+  if (S.mode === 'otc') body = `<div class="card"><p style="margin:0;font-weight:700">${t('otcTitle')}</p><p class="note">${t('otcText')}</p></div>`;
+  else if (F && F.running) body = `<div class="card center"><div class="spin"></div><p id="findProgress" class="note">${t('findProgress', F)}</p></div>`;
+  else if (F && F.best) body = bestCard(F);
+  else if (F && F.metrics) body = `<div class="card center"><p style="margin:0;font-weight:700">${t('noCond')}</p>
+      <p class="note">${t('checked', { n: F.metrics.ok })} · <span id="monitorNext"></span></p></div>`;
+  return `
+  <div class="hero">
+    <button class="bigbtn" data-act="find" ${F && F.running ? 'disabled' : ''}>⚡<span>${t('findBtn')}</span></button>
+    <p class="note center" style="margin:10px 0 0">${t('findHint')}</p>
+  </div>
+  ${body}
+  <div class="card"><div class="label">${t('mode')}</div>
+    <div class="chips">${MODES.map(m => `<button class="chip ${S.mode === m ? 'on' : ''}" data-mode="${m}">${t('mode_' + m)}</button>`).join('')}</div>
+    <div class="label mt">${t('tf')}</div>
+    <div class="seg">${Object.keys(TF).map(k => `<button class="${S.tf === k ? 'on' : ''}" data-tf="${k}">${k}</button>`).join('')}</div>
+    <div class="label mt">${t('expiry')}</div>
+    <div class="seg">${exps.map(n => `<button class="${S.fexp === n ? 'on' : ''}" data-fexp="${n}">${n} ${t('min')}</button>`).join('')}</div></div>
+  ${statusPanel()}
+  <div class="row"><button class="btn ghost sm" data-go="select">${t('manual')}</button><button class="btn ghost sm" data-go="backtest">📈 ${t('btTitle')}</button></div>
+  <div class="disc">${t('disc')}</div>`;
+}
+
+/* ═════════════════════════ БЭКТЕСТ НА РЕАЛЬНЫХ СВЕЧАХ ═════════════════════════ */
+function btRow(name, s) {
+  const n = s.win + s.loss, p = n ? s.win / n : null, ci = n ? 1.96 * Math.sqrt(0.25 / n) * 100 : null;
+  return `<tr><td>${name}</td><td>${s.signals}</td><td class="c-up">${s.win}</td><td class="c-down">${s.loss}</td><td>${s.refund}</td><td><b>${pct(p)}</b>${ci != null ? ' ±' + ci.toFixed(0) : ''}</td></tr>`;
+}
+function vBacktest() {
+  const list = ASSETS.filter(a => a.src === 'binance').sort((x, y) => (x.cls === 'crypto') - (y.cls === 'crypto') || (y.vol || 0) - (x.vol || 0));
+  if (!S.btAsset || !ASSET[S.btAsset]) S.btAsset = list[0] && list[0].id;
+  const B = S.bt;
+  return `<div class="card"><div class="label">${t('btTitle')}</div>
+    <p class="note" style="margin-top:0">${t('btHow')}</p>
+    <select class="inp" id="btAsset">${list.map(a => `<option value="${a.id}" ${a.id === S.btAsset ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}</select>
+    <div class="seg" style="margin-bottom:8px">${[1, 3, 5].map(n => `<button class="${(S.btExp || 5) === n ? 'on' : ''}" data-btexp="${n}">${n} ${t('min')}</button>`).join('')}</div>
+    <button class="btn" data-act="btrun" ${B && B.running ? 'disabled' : ''}>${t('btRun')}</button></div>
+  ${B && B.running ? `<div class="card center"><div class="spin"></div></div>` : ''}
+  ${B && B.error ? `<div class="card"><p class="warn" style="margin:0">${esc(B.error)}</p></div>` : ''}
+  ${B && B.res ? `<div class="card"><div class="label">${esc(B.name)} · M1 · ${B.exp} ${t('min')} · ${t('btCandles', { n: B.n, h: (B.n / 60).toFixed(0) })}</div>
+    <table class="t"><tr><th></th><th>N</th><th>+</th><th>−</th><th>=</th><th>%</th></tr>
+    ${btRow(t('btIns'), B.res.ins)}${btRow(t('btOos'), B.res.oos)}${B.classic ? btRow(t('btClassic'), B.classic) : ''}</table>
+    <p class="note mt">${t('be')}: <b>${pct(beRate())}</b>. ${t('btNote')}</p></div>` : ''}`;
+}
+async function runBacktestUI() {
+  const a = ASSET[S.btAsset]; if (!a) return;
+  S.bt = { running: true }; render();
+  try {
+    const c = await binanceKlines(a.sym, '1m', { limit: '1000' });
+    const exp = S.btExp || 5, res = engineBacktest(c, exp);
+    // для сравнения: исходные правила (BB + RSI + тренд 15м) на тех же свечах
+    const c15 = aggregate(c, 15), classic = { signals: 0, win: 0, loss: 0, refund: 0 };
+    let j = 0;
+    for (let i = 750; i < c.length - exp; i++) {
+      const endT = c[i].t + 60000; while (j < c15.length && c15[j].t + 900000 <= endT) j++;
+      const s = Signal.compute(c.slice(i - 99, i + 1), c15.slice(Math.max(0, j - 100), j));
+      if (s.dir === 'none') continue;
+      const r = Resolve.fromCandles({ dir: s.dir, entryT: endT, exp }, c.slice(i + 1, i + 1 + exp)); if (!r) continue;
+      classic.signals++; classic[r.outcome]++; i += exp;
+    }
+    S.bt = { res, classic: c15.length >= 50 ? classic : null, n: c.length, name: a.name, exp };
+  } catch (e) { S.bt = { error: t('noData') + ' (' + e.message + ')' }; }
+  render();
+}
+
+/* ═════════════════════════ РАЗБИВКА СТАТИСТИКИ ═════════════════════════ */
+const DIMS = {
+  asset: r => (ASSET[r.assetId] || {}).name || r.assetId,
+  market: r => (r.market === 'otc' ? 'OTC' : t('marketReg')) + (r.proxy ? ' · ' + t('proxy') : ''),
+  tf: r => r.tf || 'M1',
+  dir: r => t(r.dir),
+  hour: r => new Intl.DateTimeFormat('ru-RU', { timeZone: 'Europe/Moscow', hour: '2-digit', hourCycle: 'h23' }).format(new Date(r.ts)) + ':00',
+  algo: r => r.algo || 'v1'
+};
+function breakdownHtml(list, dim) {
+  const g = {};
+  for (const r of list) (g[DIMS[dim](r)] = g[DIMS[dim](r)] || []).push(r);
+  const rows = Object.entries(g).sort((x, y) => y[1].length - x[1].length).map(([k, l]) => {
+    const s = statsOf(l); return `<tr><td>${esc(k)}</td><td>${l.length}</td><td class="c-up">${s.w}</td><td class="c-down">${s.l}</td><td>${s.f}</td><td>${l.filter(r => r.status === 'nodata').length}</td><td>${pct(s.wr)}</td></tr>`;
+  }).join('');
+  return `<div class="chips">${Object.keys(DIMS).map(d => `<button class="chip ${dim === d ? 'on' : ''}" data-bdim="${d}">${t('dim_' + d)}</button>`).join('')}</div>
+    ${rows ? `<table class="t"><tr><th></th><th>N</th><th>WIN</th><th>LOSS</th><th>=</th><th>UNV</th><th>%</th></tr>${rows}</table>` : `<p class="note">${t('empty')}</p>`}`;
+}
+const statusLabel = s => s === 'nodata' ? t('unverified') : t(s);
 
 function vScan() {
   const sc = S.scan;
@@ -1454,11 +1986,13 @@ function vHistory() {
     <div class="row mt"><div class="stat"><b>${pct(st.wr)}</b><span>${t('winrate')}</span></div><div class="stat"><b>${pct(beRate())}</b><span>${t('be')}</span></div></div>
     <p class="note mt" style="margin-bottom:0">${t('histCap')}</p>
   </div>
+  <div class="card"><div class="label">${t('breakdown')}</div>${breakdownHtml(list, S.bdim)}</div>
+  <button class="btn ghost sm" data-go="backtest" style="margin-bottom:12px">📈 ${t('btTitle')}</button>
   <div class="card">${list.length ? list.map(r => {
     const a = ASSET[r.assetId];
-    return `<div class="hist-item"><div><b class="${r.dir === 'up' ? 'c-up' : 'c-down'}">${r.dir === 'up' ? '▲' : '▼'} ${a.name}</b> <span class="note">#${r.id} · ${r.exp} ${t('min')}</span>
+    return `<div class="hist-item"><div><b class="${r.dir === 'up' ? 'c-up' : 'c-down'}">${r.dir === 'up' ? '▲' : '▼'} ${a.name}</b> <span class="note">#${r.id} · ${r.tf ? r.tf + ' · ' : ''}${r.exp} ${t('min')}${r.quality ? ' · ' + t('q_' + r.quality) : ''}</span>
       <div class="meta">${dayHm(new Date(r.ts))}${r.entry != null ? ` · ${fp(a, r.entry)} → ${fp(a, r.exit)}` : ''}${isAdmin && r.posted ? ` · ${t('inCh')} · ${r.resultPosted ? t('resSent') : t('resNotSent')}` : ''}</div></div>
-      <div style="text-align:right"><span class="pill ${r.status}">${t(r.status)}</span>${isAdmin && r.posted && ['win', 'loss', 'refund'].includes(r.status) && !r.resultPosted ? `<br><button class="chip mt" data-act="postres" data-id="${r.id}">📤</button>` : ''}</div></div>`;
+      <div style="text-align:right"><span class="pill ${r.status}">${statusLabel(r.status)}</span>${isAdmin && r.posted && ['win', 'loss', 'refund'].includes(r.status) && !r.resultPosted ? `<br><button class="chip mt" data-act="postres" data-id="${r.id}">📤</button>` : ''}</div></div>`;
   }).join('') : `<p class="note center">${t('empty')}</p>`}</div>
   <button class="btn ghost" data-act="clear">${t('clear')}</button>`;
 }
@@ -1645,6 +2179,10 @@ function runUnitTests() {
   const cs = [0, 1, 2].map(i => ({ t: 60000 * (10 + i), o: 10 + i, h: 0, l: 0, c: 10.5 + i }));
   const fr = Resolve.fromCandles({ dir: 'up', entryT: 600000, exp: 3 }, cs);
   T.push(['Вход = open следующей, выход = close последней', fr.entry === 10 && fr.exit === 12.5 && fr.outcome === 'win', `${fr.entry} → ${fr.exit}`]);
+  T.push(['ATR постоянного диапазона = 1', Indicators.atr(Array.from({ length: 30 }, () => ({ o: 1, h: 2, l: 1, c: 1.5 }))) === 1, 1]);
+  T.push(['MACD растущего ряда > 0', Indicators.macd(up.concat(up.map(x => x + 30))).macd > 0, 'ok']);
+  T.push(['Эффективность чистого тренда = 1', Indicators.efficiency(up, 20) === 1, Indicators.efficiency(up, 20)]);
+  T.push(['Движок: мало свечей → нет сигнала', Engine.analyze(cs, null).dir === 'none', 'none']);
   T.push(['Нет свечи выхода → результата нет', Resolve.fromCandles({ dir: 'up', entryT: 600000, exp: 5 }, cs) === null, 'null']);
   return T;
 }
@@ -1654,7 +2192,9 @@ function vSelftest() {
   const agg = { signals: 0, win: 0, loss: 0, refund: 0 };
   for (let k = 1; k <= 30; k++) { const r = backtest(randomWalk(seed + k * 7919, 3000), 5); for (const x in agg) agg[x] += r[x]; }
   const line = r => { const n = r.win + r.loss, p = n ? r.win / n : 0, se = n ? Math.sqrt(0.25 / n) : 0; return { n, p, se, ok: n > 0 && Math.abs(p - 0.5) <= 2.6 * se }; };
-  const L1 = line(one), L2 = line(agg), tests = runUnitTests();
+  const E = { signals: 0, win: 0, loss: 0, refund: 0 };
+  for (let k = 1; k <= 10; k++) { const r = engineBacktest(randomWalk(seed + k * 104729, 3000), 5); for (const x in E) E[x] += r.ins[x] + r.oos[x]; }
+  const L1 = line(one), L2 = line(agg), L3 = line(E), tests = runUnitTests();
   const okAll = tests.every(x => x[1]);
   return `<div class="card"><div class="label">Selftest · seed ${seed}</div>
     <p>Случайное блуждание, 3000 минутных свечей, экспирация 5 мин. Функциям на каждом шаге передаются только прошлые свечи.</p>
@@ -1663,6 +2203,9 @@ function vSelftest() {
     <tr><td>Винрейт</td><td><b>${pct(L1.p)}</b> ± ${(L1.se * 196).toFixed(1)}% (95%)</td></tr></table>
     <p class="note mt">Контроль: 30 прогонов × 3000 свечей → сигналов ${agg.signals}, винрейт <b>${pct(L2.p)}</b> ± ${(L2.se * 196).toFixed(1)}% —
     <span class="${L2.ok ? 'pass' : 'fail'}">${L2.ok ? 'около 50%, заглядывания вперёд нет' : 'отклонение от 50% — проверьте логику'}</span></p></div>
+    <div class="card"><div class="label">Движок ${ENGINE_VERSION} · 10 × 3000 свечей</div>
+    <p style="margin:0">Сигналов ${E.signals}, винрейт <b>${pct(L3.p)}</b> ± ${(L3.se * 196).toFixed(1)}% —
+    <span class="${L3.ok ? 'pass' : 'fail'}">${L3.ok ? 'около 50%, заглядывания вперёд нет' : 'отклонение от 50% — проверьте логику'}</span></p></div>
     <div class="card"><div class="label">Юнит-проверки · <span class="${okAll ? 'pass' : 'fail'}">${tests.filter(x => x[1]).length}/${tests.length}</span></div>
     <table class="t">${tests.map(([n, ok, v]) => `<tr><td>${esc(n)}</td><td class="${ok ? 'pass' : 'fail'}">${ok ? 'OK' : 'FAIL'}</td><td class="note">${esc(v)}</td></tr>`).join('')}</table></div>
     <a class="btn ghost" href="?selftest=1">Ещё прогон</a>`;
@@ -1676,12 +2219,12 @@ function render() {
   $('#tagline').textContent = t('tagline');
   $('#btnLang').textContent = S.lang === 'ru' ? 'EN' : 'RU';
   renderSteps(); renderFoot();
-  const v = { select: vSelect, signal: vSignal, result: vResult, history: vHistory, how: vHow, day: vDay, admin: isAdmin ? vAdmin : vSelect, scan: vScan, selftest: vSelftest }[S.screen] || vSelect;
+  const v = { select: vSelect, signal: vSignal, result: vResult, history: vHistory, how: vHow, day: vDay, admin: isAdmin ? vAdmin : vSelect, scan: vScan, selftest: vSelftest, home: vHome, backtest: vBacktest }[S.screen] || vHome;
   $('#view').innerHTML = v();
-  if (tg && tg.BackButton) S.screen === 'select' ? tg.BackButton.hide() : tg.BackButton.show();
+  if (tg && tg.BackButton) S.screen === 'home' ? tg.BackButton.hide() : tg.BackButton.show();
   tick();
 }
-function goBack() { S.screen = S.screen === 'result' && S.an && S.an.status === 'ok' ? 'signal' : 'select'; render(); }
+function goBack() { S.screen = S.screen === 'result' && S.an && S.an.status === 'ok' ? 'signal' : S.screen === 'signal' ? 'select' : 'home'; render(); }
 function tick() {
   const now = Date.now();
   document.querySelectorAll('[data-deadline]').forEach(el => {
@@ -1696,6 +2239,14 @@ function tick() {
   if (watchOn() && new Date(now).getSeconds() >= 4 && S.watchMin !== Math.floor(now / 60000)) {
     S.watchMin = Math.floor(now / 60000); watchRun();
   }
+  wsHeartbeat();
+  if (S.monitor && S.mode !== 'otc' && !(S.find && S.find.running)) {
+    const ms = TF[S.tf].ms, slot = Math.floor(now / ms);
+    if (now - slot * ms >= 4000 && S.monSlot !== slot) { S.monSlot = slot; findSignal(S.mode, true); }
+    const el = document.getElementById('monitorNext');
+    if (el) el.textContent = t('monitoring', { t: hms(new Date((slot + 1) * ms + 4000)) });
+  }
+  document.querySelectorAll('[data-ago]').forEach(el => { el.textContent = fmtAgo(now - +el.dataset.ago) + ' ' + t('ago'); });
   // автопостинг без сервера: раз в минуту, пока приложение открыто у админа
   if (autoLocalOn() && new Date(now).getSeconds() >= 3 && S.autoMin !== Math.floor(now / 60000)) {
     S.autoMin = Math.floor(now / 60000); autoLocalRun();
@@ -1714,6 +2265,11 @@ document.addEventListener('click', async e => {
   if (ds.go) { S.screen = ds.go; if (ds.go === 'result') resolvePending(true); if (ds.go === 'scan') scanAll(); return render(); }
   if (ds.scanopen) { $('#banner').classList.remove('show'); const a = ASSET[ds.scanopen]; S.assetId = a.id; S.cls = a.cls; return runAnalysis(); }
   if (ds.ap) { S.ap = ds.ap; return render(); }
+  if (ds.mode) { S.mode = ds.mode; S.find = S.find && S.find.running ? S.find : null; S.monitor = ds.mode === 'auto'; return render(); }
+  if (ds.tf) { S.tf = ds.tf; S.find = null; S.monitor = false; wsConnect(); return render(); }
+  if (ds.fexp) { S.fexp = +ds.fexp; return render(); }
+  if (ds.btexp) { S.btExp = +ds.btexp; return render(); }
+  if (ds.bdim) { S.bdim = ds.bdim; return render(); }
   if (ds.bcdraft) {
     const g = draftGroups().find(x => x.key === ds.bcdraft); if (!g) return;
     const n = SUBS.get().filter(s => s.id !== g.chat).length;
@@ -1737,6 +2293,10 @@ document.addEventListener('click', async e => {
     case 'analyze': return runAnalysis();
     case 'ai': return aiExplain();
     case 'ailean': return aiLean();
+    case 'find': if (S.mode === 'otc') return render(); S.monitor = S.mode === 'auto'; return findSignal(S.mode);
+    case 'regrefresh': toast(t('loading')); await loadRegistry(true); wsConnect(); return render();
+    case 'aiv2': return aiExplainV2();
+    case 'btrun': return runBacktestUI();
     case 'watch': LS.set('ta_watch', !watchOn()); S.watchMin = null; beep(); return render(); // звук по нажатию разблокирует аудио в WebView
     case 'bannerclose': return $('#banner').classList.remove('show');
     case 'notifysubs': LS.set('ta_notify_subs', !LS.get('ta_notify_subs', false)); return render();
@@ -1799,6 +2359,7 @@ document.addEventListener('click', async e => {
     case 'wday': try { await workerApi('postDay'); toast(t('sentBot')); } catch (err) { toast(err.message); } return;
   }
 });
+document.addEventListener('change', e => { if (e.target.id === 'btAsset') S.btAsset = e.target.value; });
 document.addEventListener('input', e => {
   const el = e.target;
   if (el.id === 'refUrl') S.refDraft.url = el.value.trim();
@@ -1816,7 +2377,7 @@ window.TA = { Indicators, Signal, Resolve, aggregate, randomWalk, backtest };
 applyTheme();
 if (new URLSearchParams(location.search).get('selftest') === '1') S.screen = 'selftest';
 render();
-if (S.screen !== 'selftest') { loadSettings().then(checkStocksRealtime); checkWorkerAccess(); resolvePending(true); }
+if (S.screen !== 'selftest') { loadSettings().then(checkStocksRealtime); checkWorkerAccess(); resolvePending(true); loadRegistry().then(() => { wsConnect(); render(); }); }
 </script>
 </body>
 </html>
