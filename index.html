@@ -528,7 +528,9 @@ const I18N = {
     admViaGit: 'Изменения сохранятся для всех после «Копировать settings.json» → GitHub → Commit (блок внизу).',
     admSaveTitle: 'Сохранить настройки для всех', badId: 'Неверный ID', granted: 'Доступ выдан', grantedDraft: 'Добавлено — сохраните settings.json', revoked: 'Доступ снят',
     sentBot: 'Отправлено ботом', sendFail: 'Бот не отправил ({e})',
-    brokerNote: 'Проверьте, что этот актив (без OTC) есть у брокера; его цена может отличаться от биржевой.',
+    brokerNote: '⚠ Перед входом проверьте у брокера: если актив без OTC показывает N/A или есть только OTC-версия — не входите. OTC — другой график, сигнал к нему не относится. Цена брокера может отличаться от биржевой.',
+    brTitle: 'Активы у брокера (без OTC)', brHow: 'Доступность у брокера меняется в течение дня. Увидели у актива N/A — снимите галочку: «Найти сигнал» и автопоиск перестанут его предлагать. У вас изменение действует сразу.',
+    brSave: 'Чтобы изменение увидели все пользователи — «Копировать settings.json» → GitHub (блок «Сохранить настройки для всех» внизу).',
     sec: 'с', minShort: 'мин', ago: 'назад', wsOn: 'онлайн (WebSocket)', wsConn: 'подключение', wsRecon: 'переподключение', wsOff: 'REST', keyOk: 'ключ есть', noKey: 'нет ключа',
     sysStatus: 'Статус системы', instCount: 'Инструменты: форекс {forex} · крипта {crypto} · сырьё {commod} · акции {stocks}', otcNo: 'нет котировок',
     lastScan: 'Последний скан: {n} активов за {s} с · ок {ok} · ошибок {err} · устарело {stale} · котировки ~{f} мс · анализ ~{a} мс/актив',
@@ -644,7 +646,9 @@ const I18N = {
     admViaGit: 'Changes apply for everyone after “Copy settings.json” → GitHub → Commit (block below).',
     admSaveTitle: 'Save settings for everyone', badId: 'Invalid ID', granted: 'Access granted', grantedDraft: 'Added — save settings.json', revoked: 'Access revoked',
     sentBot: 'Sent by the bot', sendFail: 'Bot failed ({e})',
-    brokerNote: 'Check that this asset (not OTC) exists at your broker; its price may differ from the exchange.',
+    brokerNote: '⚠ Before entering, check the broker: if the non-OTC asset shows N/A or only the OTC version exists — do not enter. OTC is a different chart; the signal does not apply to it. The broker price may differ.',
+    brTitle: 'Broker assets (non-OTC)', brHow: 'Broker availability changes during the day. If an asset shows N/A, untick it: Find signal and auto-search will stop offering it. For you the change applies immediately.',
+    brSave: 'For all users to see it — “Copy settings.json” → GitHub (the “Save settings for everyone” block below).',
     sec: 's', minShort: 'min', ago: 'ago', wsOn: 'online (WebSocket)', wsConn: 'connecting', wsRecon: 'reconnecting', wsOff: 'REST', keyOk: 'key set', noKey: 'no key',
     sysStatus: 'System status', instCount: 'Instruments: forex {forex} · crypto {crypto} · commodities {commod} · stocks {stocks}', otcNo: 'no quotes',
     lastScan: 'Last scan: {n} assets in {s} s · ok {ok} · errors {err} · stale {stale} · quotes ~{f} ms · analysis ~{a} ms/asset',
@@ -992,6 +996,8 @@ function warmUp() {
 /* ═════════════════════════ СКАНЕР «НАЙТИ СИГНАЛ» ═════════════════════════ */
 const MODES = ['quick', 'full', 'forex', 'crypto', 'commod', 'stocks', 'otc', 'auto'];
 function brokerList() {
+  const local = isAdmin ? LS.get('ta_broker_local', null) : null; // админ отметил N/A — у него действует сразу
+  if (Array.isArray(local)) return local;
   const r = REMOTE.data.BROKER_ASSETS;
   return Array.isArray(r) ? r : CONFIG.BROKER_ASSETS;
 }
@@ -1697,7 +1703,7 @@ function bestCard(F) {
         <tr><td>${t('qualityL')}</td><td><b>${t('q_' + r.quality)}</b> · ${t('agree')} ${r.score}/100</td></tr>
         <tr><td>${t('formed')}</td><td>${hms(new Date(b.sigClose))} МСК · ${t('quoteAge')} ${fmtAgo(b.ageMs)}</td></tr>
         <tr><td>${t('price')}</td><td>${fp(a, r.price)}</td></tr></table>
-      <div class="instr">${esc(t('instr', { dir: t(r.dir), n: rec ? rec.exp : S.fexp, asset: a.name }))}<div class="note" style="margin-top:4px">${t('brokerNote')}</div></div>
+      <div class="instr">${esc(t('instr', { dir: t(r.dir), n: rec ? rec.exp : S.fexp, asset: a.name }))}<div class="warn" style="margin-top:6px;font-size:13px">${t('brokerNote')}</div></div>
     </div>
     <div class="card"><div class="label">${t('whyPro')}</div><ul class="checks">${pro.map(l => `<li><span class="ok">✓</span><span>${esc(l.text)}</span></li>`).join('')}</ul>
       ${con.length ? `<div class="label mt">${t('whyCon')}</div><ul class="checks">${con.map(l => `<li><span class="no">✗</span><span>${esc(l.text)}</span></li>`).join('')}</ul>` : ''}
@@ -2034,7 +2040,8 @@ function settingsJson() {
   return JSON.stringify({
     REF_URL: refValid(d) ? d.url : '', SUBID_PARAM: refValid(d) ? d.param : '',
     SUPPORT_USERNAME: /^[A-Za-z0-9_]{4,32}$/.test(cfg('SUPPORT_USERNAME').replace(/^@/, '')) ? cfg('SUPPORT_USERNAME') : '',
-    UNLOCKED_IDS: S.idsDraft
+    UNLOCKED_IDS: S.idsDraft,
+    BROKER_ASSETS: brokerList()
   }, null, 2);
 }
 function updateRefPreview() {
@@ -2061,6 +2068,13 @@ function admStats() {
     <div class="row mt"><div class="stat"><b>${pct(st.wr)}</b><span>${t('winrate')}</span></div><div class="stat"><b>${pct(beRate())}</b><span>${t('be')}</span></div></div>
     ${rows ? `<table class="t mt"><tr><th>${t('asset')}</th><th>N</th><th>+</th><th>−</th><th>%</th></tr>${rows}</table>` : ''}
     <p class="note mt" style="margin-bottom:0">${t('admStatsCap')}</p></div>`;
+}
+function admBroker() {
+  const on = brokerList(), all = CONFIG.BROKER_ASSETS.filter(id => ASSET[id]);
+  return `<div class="card"><div class="label">${t('brTitle')}</div>
+    <p class="note" style="margin-top:0">${t('brHow')}</p>
+    <div class="chips">${all.map(id => `<button class="chip ${on.includes(id) ? 'on' : ''}" data-brtoggle="${id}">${on.includes(id) ? '✓ ' : '✕ '}${esc(ASSET[id].name)}</button>`).join('')}</div>
+    <p class="note" style="margin-bottom:0">${t('brSave')}</p></div>`;
 }
 function admAI() {
   const has = !!LS.get('ta_ai_key', '');
@@ -2136,7 +2150,7 @@ function vAdmin() {
   if (!S.idsDraft) S.idsDraft = Array.isArray(REMOTE.data.UNLOCKED_IDS) ? REMOTE.data.UNLOCKED_IDS.map(Number).filter(Number.isFinite) : [];
   if (S.srcSub == null) S.srcSub = 'yt01';
   if (!S.ap) S.ap = 'd7';
-  return admStats() + admAI() + admBot() + (CONFIG.WORKER_URL ? admLocalBot() + admBroadcast() : '') + admAccess() + vRef() + `
+  return admStats() + admBroker() + admAI() + admBot() + (CONFIG.WORKER_URL ? admLocalBot() + admBroadcast() : '') + admAccess() + vRef() + `
   <div class="card"><div class="label">${t('admSaveTitle')}</div>
     <p class="note" style="margin-top:0">${t('refHow')}</p>
     <button class="btn sm" data-act="copysettings">${t('refCopyJson')}</button>
@@ -2290,6 +2304,11 @@ document.addEventListener('click', async e => {
   if (ds.go) { S.screen = ds.go; if (ds.go === 'result') resolvePending(true); if (ds.go === 'scan') scanAll(); return render(); }
   if (ds.scanopen) { $('#banner').classList.remove('show'); const a = ASSET[ds.scanopen]; S.assetId = a.id; S.cls = a.cls; return runAnalysis(); }
   if (ds.ap) { S.ap = ds.ap; return render(); }
+  if (ds.brtoggle) {
+    const cur = brokerList().slice(), i = cur.indexOf(ds.brtoggle);
+    if (i >= 0) cur.splice(i, 1); else cur.push(ds.brtoggle);
+    LS.set('ta_broker_local', cur); S.find = null; return render();
+  }
   if (ds.mode) { S.mode = ds.mode; S.find = S.find && S.find.running ? S.find : null; S.monitor = ds.mode === 'auto'; return render(); }
   if (ds.tf) { S.tf = ds.tf; S.find = null; S.monitor = false; wsConnect(); warmUp(); return render(); }
   if (ds.fexp) { S.fexp = +ds.fexp; return render(); }
