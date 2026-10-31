@@ -234,15 +234,13 @@ function engineBacktest(c1, exp = 5) {
 }
 
 
+// только активы, которые есть у брокера без OTC
 const ASSETS = {
   EURUSD: { name: 'EUR/USD', sym: 'EURUSDT', cls: 'forex', pip: 0.0001, dec: 5 },
   BTCUSD: { name: 'BTC/USD', sym: 'BTCUSDT', cls: 'crypto', dec: 2 },
   ETHUSD: { name: 'ETH/USD', sym: 'ETHUSDT', cls: 'crypto', dec: 2 },
-  SOLUSD: { name: 'SOL/USD', sym: 'SOLUSDT', cls: 'crypto', dec: 2 },
-  XRPUSD: { name: 'XRP/USD', sym: 'XRPUSDT', cls: 'crypto', dec: 4 },
-  BNBUSD: { name: 'BNB/USD', sym: 'BNBUSDT', cls: 'crypto', dec: 2 },
-  DOGEUSD: { name: 'DOGE/USD', sym: 'DOGEUSDT', cls: 'crypto', dec: 5 },
-  XAUPAXG: { name: 'Золото · PAXG', sym: 'PAXGUSDT', cls: 'crypto', dec: 2 }
+  LINKUSD: { name: 'LINK/USD', sym: 'LINKUSDT', cls: 'crypto', dec: 3 },
+  XAUPAXG: { name: 'Золото · PAXG', sym: 'PAXGUSDT', cls: 'forex', dec: 2 } // часы рынка пн–пт, как у брокера без OTC
 };
 const DEFAULT_ASSETS = Object.keys(ASSETS).join(',');
 const TFS = { M1: { bin: '1m', ms: 60000, higher: '5m' }, M5: { bin: '5m', ms: 300000, higher: '15m' } };

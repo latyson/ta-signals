@@ -187,6 +187,10 @@ const CONFIG = {
   LOCKED_FEATURES: ["ai", "stocks"],      // что закрыто: "ai", "stocks", "crypto", "forex_td" (GBP/JPY/AUD), "exp1", "exp3"
   // settings.json рядом с index.html переопределяет REF_URL, SUBID_PARAM, SUPPORT_USERNAME
   // и дополняет UNLOCKED_IDS — меняется на GitHub без правки кода (экран «Реф-ссылка» в админке).
+  // Только активы, которые есть у брокера БЕЗ OTC (сверено по списку площадки). Остальные не сканируются,
+  // чтобы приложение не советовало актив, которого на площадке нет или который есть только в OTC.
+  // Переопределяется в settings.json: "BROKER_ASSETS": [...]. Пустой список — без ограничения.
+  BROKER_ASSETS:   ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "BTCUSD", "ETHUSD", "LINKUSD", "XAUPAXG", "AAPL", "META", "AXP", "BA", "JNJ"],
   SETTINGS_URL:    "settings.json",
   WORKER_URL:      "",                    // https://….workers.dev — отправка ботом, автопостинг, мгновенная выдача доступа (README, раздел 7)
   GITHUB_REPO:     "latyson/ta-signals",                    // "логин/репозиторий" — для кнопки «Открыть settings.json на GitHub»
@@ -747,7 +751,9 @@ const ASSETS = [
   { id: 'AUDUSD', name: 'AUD/USD', cls: 'forex', src: 'td', sym: 'AUD/USD', pip: 0.0001, dec: 5, ic: ['A$', '$'] },
   { id: 'BTCUSD', name: 'BTC/USD', cls: 'crypto', src: 'binance', sym: 'BTCUSDT', dec: 2, ic: ['₿', '$'] },
   { id: 'ETHUSD', name: 'ETH/USD', cls: 'crypto', src: 'binance', sym: 'ETHUSDT', dec: 2, ic: ['Ξ', '$'] },
-  ...['AAPL', 'TSLA', 'AMZN', 'MSFT', 'NVDA', 'META', 'GOOGL'].map(s => ({ id: s, name: s, cls: 'stocks', src: 'td', sym: s, dec: 2, ic: [s[0]] }))
+  { id: 'LINKUSD', name: 'LINK/USD', cls: 'crypto', src: 'binance', sym: 'LINKUSDT', dec: 3, ic: ['LI', '$'] },
+  { id: 'XAUPAXG', name: 'Золото · PAXG', cls: 'commod', src: 'binance', sym: 'PAXGUSDT', dec: 2, ic: ['Au', '$'], proxy: true },
+  ...['AAPL', 'META', 'AXP', 'BA', 'JNJ'].map(s => ({ id: s, name: s, cls: 'stocks', src: 'td', sym: s, dec: 2, ic: [s[0]] }))
 ];
 const ASSET = Object.fromEntries(ASSETS.map(a => [a.id, a]));
 
@@ -758,8 +764,9 @@ function nyParts(d) {
   return { wd: p.weekday, mins: (+p.hour % 24) * 60 + +p.minute };
 }
 function isOpen(cls, d = new Date()) {
-  if (cls === 'crypto' || cls === 'commod') return true;
-  if (cls === 'forex') { const w = d.getUTCDay(); return w >= 1 && w <= 5; }
+  if (cls === 'crypto') return true;
+  // золото у брокера без OTC торгуется в часы рынка (пн–пт), хотя токен PAXG — круглосуточно
+  if (cls === 'forex' || cls === 'commod') { const w = d.getUTCDay(); return w >= 1 && w <= 5; }
   const p = nyParts(d);
   return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'].includes(p.wd) && p.mins >= 570 && p.mins < 960;
 }
@@ -984,8 +991,13 @@ function warmUp() {
 
 /* ═════════════════════════ СКАНЕР «НАЙТИ СИГНАЛ» ═════════════════════════ */
 const MODES = ['quick', 'full', 'forex', 'crypto', 'commod', 'stocks', 'otc', 'auto'];
+function brokerList() {
+  const r = REMOTE.data.BROKER_ASSETS;
+  return Array.isArray(r) ? r : CONFIG.BROKER_ASSETS;
+}
+const atBroker = a => { const l = brokerList(); return !l || !l.length || l.includes(a.id); };
 function scanSet(mode) {
-  const avail = ASSETS.filter(a => isOpen(a.cls) && !assetLocked(a) && (a.src === 'binance' || (tdKeyOk() && (a.cls !== 'stocks' || S.stockRT === 'ok'))));
+  const avail = ASSETS.filter(a => atBroker(a) && isOpen(a.cls) && !assetLocked(a) && (a.src === 'binance' || (tdKeyOk() && (a.cls !== 'stocks' || S.stockRT === 'ok'))));
   const bin = avail.filter(a => a.src === 'binance');
   const topCrypto = bin.filter(a => a.cls === 'crypto').sort((x, y) => (y.vol || 0) - (x.vol || 0));
   switch (mode) {
@@ -1628,7 +1640,7 @@ function lockCard() {
 }
 
 function vSelect() {
-  const assets = ASSETS.filter(a => a.cls === S.cls);
+  const assets = ASSETS.filter(a => a.cls === S.cls && atBroker(a));
   let list = '';
   if (isLocked(S.cls)) list = lockCard();
   else if (S.cls === 'stocks' && S.stockRT === 'checking') list = `<div class="spin"></div><p class="note center">${t('stocksChecking')}</p>`;
